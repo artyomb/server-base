@@ -30,12 +30,12 @@ bundle install
 
 ## Demo Server
 
-Edit `config/servers/demo.rb` and replace the example host/domain values.
+Edit `config/servers.demo/demo.rb` and replace the example host/domain values.
 
 Run:
 
 ```sh
-ruby bin/deploy --server demo
+ruby bin/deploy --servers-dir config/servers.demo --server demo
 ```
 
 Or use the interactive server picker:
@@ -44,19 +44,19 @@ Or use the interactive server picker:
 ruby bin/deploy-menu
 ```
 
-The deploy CLI loads `config/servers/demo.rb`, resolves action dependencies,
+The deploy CLI loads `config/servers.demo/demo.rb`, resolves action dependencies,
 runs remote checks, and applies only the actions that are not already satisfied.
 
 ## CI/CD
 
 The repository includes a GitLab CI deploy pipeline. Configure `SSH_PRIVATE_KEY`
 as a masked CI variable, then run either the default deploy job or the manual
-`deploy-demo` job.
+`deploy-demo_demo` job.
 
 Local Docker smoke test:
 
 ```sh
-./test-deploy-dockerfile.sh config/servers demo
+./test-deploy-dockerfile.sh config/servers.demo demo
 ```
 
 ## Useful Environment Variables

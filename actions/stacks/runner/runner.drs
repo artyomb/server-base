@@ -1,0 +1,65 @@
+Description <<~DCS
+  Docker gitlab_runner stack
+DCS
+Labels 'stack.product': 'gitlab_runner'
+
+Options name: 'gitlab_runner' , traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'] , tls_domain: ENV['TLS_DOMAIN']
+
+Service :ssh_agent, image: 'docksal/ssh-agent' do
+  volume name: 'ssh-agent-ssh', target: '/ssh'
+  volume name: 'ssh-agent-socket', target: '/.ssh-agent' # /.ssh-agent/proxy-socket
+end
+# Open terminal:
+# ssh-add -
+# Ctrl-V priv key
+# Ctrl-D Ctrl-D
+#
+
+Service :runner, image: 'gitlab/gitlab-runner:latest' do
+  volume '/var/run/docker.sock:/var/run/docker.sock'
+  config :runner_config, target: '/etc/gitlab-runner/config.toml'
+end
+
+Config :runner_config, file_content: <<~TOML
+  concurrent = 1
+  check_interval = 0
+  shutdown_timeout = 0
+  [session_server]
+    session_timeout = 1800
+  
+  [[runners]]
+    name = "#{ENV['GITLAB_RUNNER_NAME']}"
+    url = "#{ENV['GITLAB_RUNNER_URL']}"
+    id = 255
+    token = "#{ENV['GITLAB_RUNNER_TOKEN']}"
+    token_obtained_at = 2024-04-22T01:06:12Z
+    token_expires_at = 0001-01-01T00:00:00Z
+    executor = "docker"
+    builds_dir = "/build_dir"
+    cache_dir = "/build_dir_cache"
+    environment = [
+      "CI_REGISTRY_HOST=#{ENV['REGISTRY_HOST']}",
+      "CI_SSH_AUTH_SOCK=/run/ssh-agent/proxy-socket"
+    ]
+
+    [runners.custom_build_dir]
+      enabled = true
+    [runners.cache]
+      MaxUploadedArchiveSize = 0
+      [runners.cache.s3]
+      [runners.cache.gcs]
+      [runners.cache.azure]
+    [runners.docker]
+      tls_verify = false
+      image = "docker:stable"
+      privileged = true
+      disable_entrypoint_overwrite = false
+      oom_kill_disable = false
+      disable_cache = false
+      volumes = ["/root/.docker:/root/.docker:rw", "/cache", "/var/run/docker.sock:/var/run/docker.sock"]
+      shm_size = 0
+      network_mtu = 0
+  
+  [registry."swarm.next:5000"]
+    http = true
+TOML

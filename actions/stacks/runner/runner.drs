@@ -5,6 +5,8 @@ Labels 'stack.product': 'gitlab_runner'
 
 Options name: 'gitlab_runner' , traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'] , tls_domain: ENV['TLS_DOMAIN']
 
+Deploy %i[ssh_agent runner], placement: { constraints: ["node.id == #{ENV.fetch('GITLAB_RUNNER_NODE_ID')}"] }
+
 Service :ssh_agent, image: 'docksal/ssh-agent' do
   volume name: 'ssh-agent-ssh', target: '/ssh'
   volume name: 'ssh-agent-socket', target: '/.ssh-agent' # /.ssh-agent/proxy-socket
@@ -56,7 +58,7 @@ Config :runner_config, file_content: <<~TOML
       disable_entrypoint_overwrite = false
       oom_kill_disable = false
       disable_cache = false
-      volumes = ["/root/.docker:/root/.docker:rw", "/cache", "/var/run/docker.sock:/var/run/docker.sock"]
+      volumes = ["/root/.docker:/root/.docker:rw", "/cache", "/var/run/docker.sock:/var/run/docker.sock", "ssh-agent-socket:/run/ssh-agent:ro"]
       shm_size = 0
       network_mtu = 0
   

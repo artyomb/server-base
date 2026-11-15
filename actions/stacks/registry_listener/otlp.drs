@@ -1,7 +1,7 @@
 BeforeService do
   logging driver: 'loki', options: {
     'loki-url': 'http://localhost:3100/loki/api/v1/push',
-    'loki-batch-size': 100, 'loki-retries': 2,
+    'loki-retries': 2,
     'loki-max-backoff': '1000ms', 'loki-timeout': '1s',
     'max-buffer-size': '100m',
     'mode': 'non-blocking',

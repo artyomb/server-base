@@ -45,7 +45,7 @@ Deploy [:node_exporter, :promtail, :fluent_bit2], { mode: 'global' }
 
 Logging [:prometheus, :grafana, :tempo, :cadvisor], driver: 'loki', options: {
   'loki-url': 'http://localhost:3100/loki/api/v1/push',
-  'loki-batch-size': 100, 'loki-retries': 2, 'loki-max-backoff': '1000ms', 'loki-timeout': '1s', 'max-size': "250m",'max-file': "3" }
+  'loki-retries': 2, 'loki-max-backoff': '1000ms', 'loki-timeout': '1s', 'max-size': "250m",'max-file': "3" }
 
 Service :tempo, image: "grafana/tempo:#{ENV['TEMPO_TAG'] || '2.8.3'}", ports: 4318 do
   command '-config.file=/etc/tempo.yaml'
@@ -100,6 +100,7 @@ Service :vmagent, image: 'victoriametrics/vmagent:latest' do
   command %w[
    -promscrape.config=/etc/vmagent.yaml
    -remoteWrite.url=http://victoriametrics:8428/api/v1/write
+   -remoteWrite.maxDiskUsagePerURL=536871040
    -promscrape.config.strictParse=false
    -promscrape.maxScrapeSize=33554432
    -promscrape.dockerswarmSDCheckInterval=10s

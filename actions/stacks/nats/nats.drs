@@ -1,0 +1,71 @@
+Options name: 'nats', traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'], tls_domain: ENV['TLS_DOMAIN']
+
+token = ENV.fetch('NATS_TOKEN', '')
+raise 'NATS_TOKEN must contain at least 32 URL-safe characters' unless token.match?(/\A[A-Za-z0-9_-]{32,}\z/)
+
+memory_mib = Integer(ENV.fetch('NATS_MEMORY_MIB', '512'), 10)
+jetstream_memory_mib = Integer(ENV.fetch('NATS_JS_MEMORY_MIB', '128'), 10)
+jetstream_file_mib = Integer(ENV.fetch('NATS_JS_FILE_MIB', '2048'), 10)
+cpu_limit = Float(ENV.fetch('NATS_CPU_LIMIT', '1.0'))
+raise 'NATS_MEMORY_MIB must be at least 128' unless memory_mib >= 128
+unless jetstream_memory_mib.positive? && jetstream_memory_mib <= memory_mib / 2
+  raise 'NATS_JS_MEMORY_MIB must be positive and at most half of NATS_MEMORY_MIB'
+end
+raise 'NATS_JS_FILE_MIB must be positive' unless jetstream_file_mib.positive?
+raise 'NATS_CPU_LIMIT must be finite and positive' unless cpu_limit.finite? && cpu_limit.positive?
+
+Deploy nats_single: {
+         placement: { constraints: ['node.role == manager'] },
+         resources: { 'limits.memory': "#{memory_mib}M", 'limits.cpus': cpu_limit.to_s }
+       },
+       prometheus_nats_exporter: { resources: { 'limits.memory': '128M', 'limits.cpus': '0.25' } },
+       nats_nui: { resources: { 'limits.memory': '256M', 'limits.cpus': '0.5' } }
+
+Ingress nats_nui: { mount: '/map/nats', port: 31311, priority: 100,
+                    oauth_provider: 'oauth2_oauth2_slim:7000/auth' }
+
+Network :nats_network, external: true, name: 'nats-network'
+Network :grafana_network, external: true, name: 'grafana-network'
+
+BeforeService do
+  network :default
+  logging driver: 'json-file', options: { 'max-size': '10m', 'max-file': '3' }
+end
+
+Service :nats_single, image: 'nats:2.15.3-scratch' do
+  network :nats_network
+  volume target: '/data', name: 'nats_data'
+  env NATS_TOKEN: token, GOMEMLIMIT: "#{memory_mib * 4 / 5}MiB"
+  command '-c /etc/nats/nats.conf'
+  deploy_label 'traefik.enable=false'
+  config target: '/etc/nats/nats.conf', file_content: <<~NATS
+    server_name: nats_single
+    port: 4222
+    http_port: 8222
+    authorization { token: $NATS_TOKEN }
+    max_connections: 1024
+    max_payload: 1048576
+    max_pending: 8388608
+    jetstream {
+      store_dir: /data/jetstream
+      max_memory_store: #{jetstream_memory_mib * 1024 * 1024}
+      max_file_store: #{jetstream_file_mib * 1024 * 1024}
+    }
+  NATS
+end
+
+Service :prometheus_nats_exporter, image: 'natsio/prometheus-nats-exporter:0.20.3' do
+  network :grafana_network
+  env GOMEMLIMIT: '96MiB'
+  command '-varz -healthz -jsz=consumers http://nats_single:8222'
+  deploy_label 'traefik.enable=false'
+end
+
+Service :nats_nui, image: 'ghcr.io/nats-nui/nui:0.10.0' do
+  volume target: '/db', name: 'nats_nui_db'
+  env GOMEMLIMIT: '192MiB'
+  command '--db-path /db --nats-cli-contexts /nats-cli-contexts'
+
+  config target: '/nats-cli-contexts/server.json',
+         file_content: JSON.generate(url: 'nats://nats_single:4222', token: token)
+end

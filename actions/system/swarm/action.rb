@@ -2,8 +2,11 @@ require 'shellwords'
 
 Action :swarm, depends: [:docker] do
   loki_driver_version = '3.7.2'
+  firewall_script = File.join(__dir__, 'block_ports.sh')
+  firewall_unit = File.join(__dir__, 'swarm-block-ports.service')
+  firewall_enabled = ->(params) { !%w[false 0 no off].include?(params.fetch(:block_ports, true).to_s.downcase) }
 
-  check do |_params|
+  check do |params|
     swarm_state = capture("docker info --format '{{.Swarm.LocalNodeState}}'").strip
     raise 'Docker returned an empty Swarm state' if swarm_state.empty?
     next false unless swarm_state == 'active'
@@ -20,7 +23,12 @@ Action :swarm, depends: [:docker] do
                     true
                   end
 
-    loki_enabled && networks_ok
+    firewall_ok = !firewall_enabled.call(params) || (
+      read_file('/usr/local/sbin/swarm-block-ports', default: '') == File.read(firewall_script) &&
+      read_file('/etc/systemd/system/swarm-block-ports.service', default: '') == File.read(firewall_unit) &&
+      capture('systemctl is-enabled --quiet swarm-block-ports.service && systemctl is-active --quiet swarm-block-ports.service && /usr/local/sbin/swarm-block-ports --check >/dev/null 2>&1 && echo ok || true').strip == 'ok'
+    )
+    loki_enabled && networks_ok && firewall_ok
   end
 
   apply do |params|
@@ -128,5 +136,12 @@ Action :swarm, depends: [:docker] do
       fi
     SH
     remote(script)
+    if firewall_enabled.call(params)
+      exec('install -d -m 0755 /usr/local/sbin')
+      write_file('/usr/local/sbin/swarm-block-ports', File.read(firewall_script))
+      write_file('/etc/systemd/system/swarm-block-ports.service', File.read(firewall_unit))
+      exec('chmod 0755 /usr/local/sbin/swarm-block-ports && systemctl daemon-reload && systemctl enable swarm-block-ports.service && systemctl restart swarm-block-ports.service')
+      exec('/usr/local/sbin/swarm-block-ports --check')
+    end
   end
 end

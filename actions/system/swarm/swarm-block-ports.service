@@ -1,0 +1,14 @@
+[Unit]
+Description=Block external connections to Swarm Loki
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/swarm-block-ports
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target docker.service

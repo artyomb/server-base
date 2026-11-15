@@ -10,6 +10,7 @@ Included actions:
 - `oauth2_slim`
 - `insight`
 - `grafana`
+- `nats` (optional messaging, JetStream and OAuth-protected NUI)
 - `registry_listener`
 - `runner`
 - `cronfix` (optional scheduled diagnostics)
@@ -22,7 +23,7 @@ install steps: `base`, `docker`, `docker_resolved`, and `system_check`.
 - Ruby 3.1.2 or newer and Bundler
 - root SSH access to the target server
 - Docker-capable Ubuntu or RED OS target
-- `dry-stack` 0.1.62 or a newer 0.1.x release, installed through Bundler
+- `dry-stack` 0.1.63 or a newer 0.1.x release, installed through Bundler
 
 Install dependencies:
 
@@ -156,6 +157,9 @@ notifications; they do not deploy or contact a server.
 - `VLLM_DASHBOARD_ENABLED=true`: provision the optional vLLM dashboard when vLLM
   metrics are already available through the Prometheus datasource. It creates no
   vLLM service or exporter; existing `GPU_NODE` behavior is unchanged.
+- `NATS_TOKEN`: required private token when deploying `nats`; at least 32 URL-safe
+  characters. Resource budgets and connection details are documented in the
+  [NATS stack guide](actions/stacks/nats/README.md).
 
 Do not commit real server IPs, credentials, generated dry-stack config files, or
 local `.env` files to a public repository.
@@ -168,6 +172,18 @@ An enabled `loki:latest` alias satisfies stack logging; its driver version is
 retained. Custom aliases are preserved but do not replace this default alias.
 A disabled default alias requires manual attention. See the PostgreSQL port
 setting above when updating an existing ingress.
+
+Swarm setup installs `swarm-block-ports.service` to reject external TCP connections
+to Loki's published port 3100 on the default-route interfaces, for IPv4 and IPv6.
+Local host log drivers retain access. The rules are checked on each deployment and
+reapplied after Docker restarts and reboots. Use `install :swarm, block_ports: false`
+only when equivalent filtering is managed elsewhere; this skips management and
+does not remove existing rules. Loki logging uses the driver's default batch size.
+
+The runner action places GitLab Runner and its SSH agent on the deployment node.
+Job containers mount the agent's named socket volume at `/run/ssh-agent` read-only;
+`CI_SSH_AUTH_SOCK` points to its `proxy-socket`. Direct DRS rendering requires
+`GITLAB_RUNNER_NODE_ID`; the action obtains it automatically from Docker.
 
 Grafana is available at `/map/grafana/` behind OAuth2 Slim ForwardAuth, with no
 second login. Users admitted by OAuth share organization Admin access in
@@ -192,3 +208,9 @@ and does not expose an unauthenticated port 8080 listener.
 Optional inode, kernel OOM and Swarm replica diagnostics:
 [cronfix configuration and behavior](actions/system/cronfix/README.md).
 The action is opt-in and does not enable itself in existing server definitions.
+
+Optional NATS messaging and JetStream storage are available through `install :nats`.
+NUI is served at `/map/nats/` behind OAuth2 Slim; admitted users share NATS
+management access. The stack uses bounded resource budgets and persistent volumes,
+with client access restricted to the internal overlay network. See the
+[NATS stack guide](actions/stacks/nats/README.md).

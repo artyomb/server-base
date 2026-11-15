@@ -7,6 +7,7 @@ Server :server_ru do
   install :oauth2_slim #, users:{ admin { ....} }
   install :insight
   install :grafana #, env: { GPU_NODE: true }
+  # install :nats, env: { NATS_TOKEN: ENV.fetch('NATS_TOKEN') }
   install :registry_listener
   install :runner, env: {
     GITLAB_RUNNER_NAME: 'build_deploy',

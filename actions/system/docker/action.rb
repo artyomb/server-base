@@ -1,11 +1,27 @@
 require 'json'
 
 docker_running = ->(ctx) { ctx.capture('docker info >/dev/null 2>&1 && echo ok || true').strip == 'ok' }
+ensure_client_config = lambda do |ctx|
+  ctx.exec <<~SH
+    set -e
+    install -d -m 700 /root/.docker
+    if [ ! -e /root/.docker/config.json ] && [ ! -L /root/.docker/config.json ]; then
+      (umask 077; set -C; printf '{}\n' > /root/.docker/config.json)
+    fi
+    test -f /root/.docker/config.json
+    chmod 600 /root/.docker/config.json
+  SH
+end
 
 Action :docker do
   check do |_params|
     bin_ok = capture('docker --version >/dev/null 2>&1 && echo ok || true').strip == 'ok'
-    bin_ok && docker_running[self]
+    config_ok = capture(<<~SH).strip == 'ok'
+      [ -d /root/.docker ] && [ -f /root/.docker/config.json ] &&
+        [ "$(stat -c %a /root/.docker)" = 700 ] &&
+        [ "$(stat -c %a /root/.docker/config.json)" = 600 ] && echo ok || true
+    SH
+    bin_ok && docker_running[self] && config_ok
   end
 
   apply do |params|
@@ -16,11 +32,16 @@ Action :docker do
       raise 'docker :version is supported only with type: :static'
     end
 
-    if type == 'static'
-      if version && version.to_s !~ /\A[0-9]+(\.[0-9]+){0,3}\z/
-        raise "docker static version must be digits and dots: #{version}"
-      end
+    if type == 'static' && version && version.to_s !~ /\A[0-9]+(\.[0-9]+){0,3}\z/
+      raise "docker static version must be digits and dots: #{version}"
+    end
 
+    if docker_running[self]
+      ensure_client_config[self]
+      next
+    end
+
+    if type == 'static'
       script_path = File.expand_path('install-docker-static.sh', __dir__)
       unless File.file?(script_path)
         warn "install-docker-static.sh not found at #{script_path}; skipping"
@@ -110,12 +131,7 @@ Action :docker do
       SH
     end
 
-    exec <<~SH
-      set -e
-      install -d -m 700 /root/.docker
-      [ -f /root/.docker/config.json ] || printf '{}\n' > /root/.docker/config.json
-      chmod 600 /root/.docker/config.json
-    SH
+    ensure_client_config[self]
 
     unless docker_running[self]
       puts '[docker] daemon is not reachable after apply; dumping status/logs'

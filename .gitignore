@@ -14,3 +14,9 @@ ci.env
 .idea/
 .vscode/
 *.iml
+
+eternal.rb
+# local agent instructions and project knowledge
+AGENTS.md
+PURPOSE.md
+**/.knowledge/

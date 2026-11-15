@@ -1,4 +1,61 @@
+require 'yaml'
+require 'uri'
+
 Options name: 'oauth2'
+
+auth_users = ENV['AUTH_USERS']
+verify_key = ENV['AUTH_VERIFY_KEY']
+if verify_key && !verify_key.match?(/\A[0-9a-fA-F]{64}\z/)
+  raise 'AUTH_VERIFY_KEY must contain a 32-byte Ed25519 public key in hexadecimal'
+end
+if ENV['AUTH_BOT'] && (!verify_key || ENV['AUTH_BOT'].strip.empty?)
+  raise 'AUTH_BOT requires a nonempty bot name and AUTH_VERIFY_KEY'
+end
+
+if auth_users
+  begin
+    users_data = YAML.safe_load(auth_users, permitted_classes: [], aliases: false)
+  rescue Psych::Exception
+    raise 'AUTH_USERS must be valid YAML without aliases or custom types'
+  end
+  entries = users_data.is_a?(Hash) && users_data['users']
+  unless entries.is_a?(Array) && entries.all? { |entry| entry.is_a?(Hash) && entry.size == 1 }
+    raise 'AUTH_USERS must contain a users array of single-login mappings'
+  end
+  logins = []
+  enabled_users = entries.count do |entry|
+    login, attributes = entry.first
+    unless login.is_a?(String) && !login.strip.empty? && attributes.is_a?(Hash)
+      raise 'AUTH_USERS entries require a nonempty login and an attribute mapping'
+    end
+    raise 'AUTH_USERS contains duplicate logins' if logins.include?(login)
+    logins << login
+    attributes = attributes.transform_keys { |key| key.to_s.downcase }
+    enabled = attributes.fetch('enabled', true)
+    raise 'AUTH_USERS enabled must be true or false' unless [true, false].include?(enabled)
+    if enabled && (!attributes['password'].is_a?(String) || attributes['password'].empty?)
+      raise 'Enabled AUTH_USERS entries require a nonempty string password'
+    end
+    enabled
+  end
+  raise 'AUTH_USERS needs an enabled user or AUTH_VERIFY_KEY' if enabled_users.zero? && !verify_key
+elsif !verify_key
+  raise 'Configure AUTH_USERS or AUTH_VERIFY_KEY; no default OAuth user is provided'
+end
+
+if ENV.key?('OIDC_CLIENT_SECRET') || ENV.key?('OIDC_ISSUER')
+  oidc_secret = ENV['OIDC_CLIENT_SECRET']
+  raise 'OIDC_CLIENT_SECRET must be nonempty when configuring OIDC' if oidc_secret.to_s.strip.empty?
+  oidc_issuer = ENV.fetch('OIDC_ISSUER') { "#{ENV.fetch('SCHEME')}://#{ENV.fetch('MAIN_DOMAIN')}/oauth_slim" }
+  begin
+    issuer_uri = URI.parse(oidc_issuer)
+  rescue URI::InvalidURIError
+    raise 'OIDC_ISSUER must be an absolute HTTP(S) URL without credentials, query or fragment'
+  end
+  unless %w[http https].include?(issuer_uri.scheme) && issuer_uri.host && !issuer_uri.userinfo && !issuer_uri.query && !issuer_uri.fragment
+    raise 'OIDC_ISSUER must be an absolute HTTP(S) URL without credentials, query or fragment'
+  end
+end
 
 Service :oauth2_slim, image: 'dtorry/oauth2-slim:latest', ports: 7000 do
   deploy placement: { constraints: ['node.role == manager'] }
@@ -6,23 +63,22 @@ Service :oauth2_slim, image: 'dtorry/oauth2-slim:latest', ports: 7000 do
   network :grafana_network, name: 'grafana-network', external: true
   deploy_label 'metrics.port=7000'
 
-  ingress path: '/{path:(.*oauth_slim/authorize)}' # Traefik v2
-  ingress path: '/oauth_slim', path_sub: ['/oauth_slim(.*)', '$1']
-  env FORWARD_OAUTH_AUTH_URL: ENV['FORWARD_OAUTH_AUTH_URL'] ||'/oauth_slim/authorize'
+  ingress path: '/{path:(oauth_slim/authorize|.*/oauth_slim/authorize)}', priority: 1000 # Traefik v2
+  ingress path: '/oauth_slim', path_sub: ['^/oauth_slim(.*)', '$1'], priority: 999
+  env FORWARD_OAUTH_AUTH_URL: ENV['FORWARD_OAUTH_AUTH_URL'] || '/oauth_slim/authorize'
   env AUTH_SCOPE: ENV['MAIN_DOMAIN']
 
   env CONSOLE_OUTPUT: 'XTerm', # JSON,Text,XTerm,Default
       CONSOLE_LEVEL: ENV.fetch('CONSOLE_LEVEL', 'all')
 
   volume name: 'oauth2-slim', target: '/private_keys'
-
-  # env AUTH_BOT: ENV.fetch('AUTH_BOT', 'slim_auth_bot')
-  # env AUTH_VERIFY_KEY: ENV.fetch('AUTH_VERIFY_KEY', 'demo-verify-key')
-
-  env USERS_YAML: '/users.yaml'
-  config target: '/users.yaml', file_content: <<~YAML
-    users:
-      - admin: { Name: Fullname, role: admin, org: org, enabled: true, password: admin }
-      # - admin: { Name: Fullname, role: admin, org: org, enabled: true, password: admin }
-  YAML
+  env AUTH_VERIFY_KEY: verify_key if verify_key
+  env AUTH_BOT: ENV['AUTH_BOT'] if ENV['AUTH_BOT']
+  if oidc_secret
+    env OIDC_CLIENT_SECRET: oidc_secret, OIDC_ISSUER: oidc_issuer
+  end
+  if auth_users
+    env USERS_YAML: '/users.yaml'
+    config target: '/users.yaml', file_content: auth_users
+  end
 end

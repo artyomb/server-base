@@ -20,19 +20,25 @@ class DockerEventsPanel {
         this.render();
     }
 
-    parseDockerEvent(logLine) {
+    parseDockerEvent(logLine, fallbackTime) {
         try {
-            // Expected format: timestamp container_name event_type additional_info
             const event = JSON.parse(logLine);
+            if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
+            let timestamp = event.ts ?? event.timestamp ?? fallbackTime;
+            if (event.timeNano != null) timestamp = Number(event.timeNano) / 1e6;
+            else if (event.time != null) timestamp = Number(event.time) * 1000;
+            else if (typeof timestamp === 'string') timestamp = /^\d+(\.\d+)?$/.test(timestamp) ? Number(timestamp) : Date.parse(timestamp);
+            const type = event.Action || event.event || event.type || event.status;
+            const container = event.Actor?.Attributes?.name || event.container || event.name || event.id || event.Actor?.ID;
+            if (!Number.isFinite(timestamp) || typeof type !== 'string' || !type || typeof container !== 'string' || !container) return null;
             return {
-                timestamp: event.ts || event.timestamp,
-                type: event.type || event.event,
-                container: event.container || event.name,
-                status: event.status,
+                timestamp,
+                type,
+                container,
+                status: event.status || event.Action,
                 details: event.details || event
             };
         } catch (e) {
-            console.error('Failed to parse log line:', logLine);
             return null;
         }
     }
@@ -50,8 +56,9 @@ class DockerEventsPanel {
 
             if (!timeField || !logField) return;
 
+            const valueAt = (field, i) => typeof field.values.get === 'function' ? field.values.get(i) : field.values[i];
             for (let i = 0; i < series.length; i++) {
-                const event = this.parseDockerEvent(logField.values.get(i));
+                const event = this.parseDockerEvent(valueAt(logField, i), valueAt(timeField, i));
                 if (!event) continue;
 
                 // Count event types
@@ -71,6 +78,7 @@ class DockerEventsPanel {
 
         // Sort timeline events
         this.timelineEvents.sort((a, b) => a.timestamp - b.timestamp);
+        this.containerEvents.forEach(events => events.sort((a, b) => a.timestamp - b.timestamp));
     }
 
     createEventTypesChart() {
@@ -124,14 +132,23 @@ class DockerEventsPanel {
             const lastEvent = events[events.length - 1];
             const status = lastEvent.status || 'unknown';
 
-            item.innerHTML = `
-                <div style="display: flex; justify-content: space-between;">
-                    <strong>${container}</strong>
-                    <span class="status-${status}">${status}</span>
-                </div>
-                <div>Last event: ${new Date(lastEvent.timestamp).toLocaleString()}</div>
-                <div>Total events: ${events.length}</div>
-            `;
+            const heading = document.createElement('div');
+            heading.style.display = 'flex';
+            heading.style.justifyContent = 'space-between';
+            const name = document.createElement('strong');
+            name.textContent = container;
+            const state = document.createElement('span');
+            state.className = `status-${status}`;
+            state.textContent = status;
+            heading.appendChild(name);
+            heading.appendChild(state);
+            const last = document.createElement('div');
+            last.textContent = `Last event: ${new Date(lastEvent.timestamp).toLocaleString()}`;
+            const count = document.createElement('div');
+            count.textContent = `Total events: ${events.length}`;
+            item.appendChild(heading);
+            item.appendChild(last);
+            item.appendChild(count);
 
             list.appendChild(item);
         });

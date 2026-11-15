@@ -6,23 +6,49 @@ Deploy traefik: { placement: { constraints: ['node.role == manager'] } }
 
 Options name: 'simple-ingress', traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'], tls_domain: ENV['TLS_DOMAIN']
 
-basic_auth = ENV.fetch('TRAEFIK_BASIC_AUTH', 'admin:admin:demo')
+# File-provider routes can select api@internal without a container-port backend.
+dashboard_routers = {
+  'dashboard-path' => {
+    'rule' => 'Path(`/traefik`) || PathPrefix(`/traefik/`)',
+    'priority' => 100, 'middlewares' => ['dashboard-oauth', 'dashboard-root']
+  },
+  'dashboard-host' => {
+    'rule' => 'HostRegexp(`{name:traefik\\..*}`)',
+    'priority' => 99, 'middlewares' => ['dashboard-oauth', 'dashboard-prefix', 'dashboard-root']
+  }
+}
+dashboard_routers.each do |name, router|
+  router['entryPoints'] = [ENV['TLS_DOMAIN'] ? 'https' : 'http']
+  router['service'] = 'api@internal'
+  next unless ENV['TLS_DOMAIN']
 
-Ingress traefik: [
-                  { path: '/traefik', port: '8080', basic_auth: basic_auth },
-                  { host: 'traefik.*', port: '8080', basic_auth: basic_auth }
-                 ]
-
-http_port = ENV.fetch('TRAEFIK_HTTP_PORT', 80)
-https_port = ENV.fetch('TRAEFIK_HTTPS_PORT', 443)
-postgres_port = ENV.fetch('TRAEFIK_POSTGRES_PORT', 5432)
-
-if !!ENV['TLS_DOMAIN']
-  PublishPorts traefik: [ "#{http_port}:80", "#{https_port}:443", "#{https_port}:443/udp",
-                          "#{postgres_port}:5432" ]
-else
-  PublishPorts traefik: [ { target: 80, published: http_port.to_i, protocol: 'tcp', mode: 'host' } ]
+  domain = name == 'dashboard-host' ? "traefik.#{ENV['TLS_DOMAIN']}" : ENV['TLS_DOMAIN']
+  router['tls'] = { 'certResolver' => 'le', 'domains' => [{ 'main' => domain }] }
 end
+
+port_number = lambda do |name, default|
+  value = ENV.fetch(name, default).to_s
+  unless value.match?(/\A[0-9]+\z/) && (1..65535).cover?(value.to_i)
+    raise "#{name} must be an integer between 1 and 65535"
+  end
+  value.to_i
+end
+http_port = port_number.call('TRAEFIK_HTTP_PORT', 80)
+https_port = port_number.call('TRAEFIK_HTTPS_PORT', 443)
+postgres_port = port_number.call('TRAEFIK_POSTGRES_PORT', nil) if ENV.key?('TRAEFIK_POSTGRES_PORT')
+
+ports = [{ target: 80, published: http_port, protocol: 'tcp', mode: ENV['TLS_DOMAIN'] ? 'ingress' : 'host' }]
+if ENV['TLS_DOMAIN']
+  ports += [
+    { target: 443, published: https_port, protocol: 'tcp', mode: 'ingress' },
+    { target: 443, published: https_port, protocol: 'udp', mode: 'ingress' }
+  ]
+end
+ports << { target: 5432, published: postgres_port, protocol: 'tcp', mode: 'ingress' } if postgres_port
+unless ports.map { |port| [port[:published], port[:protocol]] }.uniq.size == ports.size
+  raise 'Traefik published ports must be unique for each protocol'
+end
+PublishPorts traefik: ports
 
 OTLP_COMMAND = %(
   --metrics.otlp=true
@@ -39,7 +65,6 @@ TLS_COMMAND = %(
   --core.defaultRuleSyntax=v2
   --providers.swarm.endpoint=unix:///var/run/docker.sock
   --providers.swarm.network=ingress-routing
-  --entrypoints.postgres.address=:5432
   --entrypoints.http.address=:80
   --entrypoints.http.asDefault=true
   --entrypoints.http.http.redirections.entryPoint.to=https
@@ -50,13 +75,13 @@ TLS_COMMAND = %(
   --entrypoints.https.http.tls=true
   --entrypoints.https.http.tls.certResolver=le
   --entryPoints.https.http3
-  --entryPoints.https.http3.advertisedport=443
+  --entryPoints.https.http3.advertisedport=#{https_port}
   --entryPoints.https.transport.respondingTimeouts.readTimeout=300
   --entryPoints.https.http.encodedCharacters.allowEncodedSlash=true
   --accesslog
   --log
   --api
-  --api.insecure=true
+  --api.basePath=/traefik
   --entryPoints.https.forwardedHeaders.insecure
 ).split
 
@@ -72,15 +97,11 @@ NON_TLS_COMMAND = %(
   --accesslog
   --log
   --api
-  --api.insecure=true
+  --api.basePath=/traefik
   --api.dashboard=true
 ).split
-#  --api.basePath=/traefik TODO: still not supported for v3
-#   https://doc.traefik.io/traefik/v3.0/operations/dashboard
-#   https://community.traefik.io/t/can-t-display-the-traefik-dashboard-by-using-pathprefix/23794
-#   https://github.com/traefik/traefik/issues/5374
-
 COMMAND = !!ENV['TLS_DOMAIN'] ? TLS_COMMAND : NON_TLS_COMMAND
+COMMAND += ['--entrypoints.postgres.address=:5432'] if postgres_port
 
 COMMAND += %w(
   --entrypoints.metrics.address=:9090
@@ -131,13 +152,33 @@ elsif !!ENV['TLS_DOMAIN']
 end
 Service :traefik, image: "traefik:#{ENV['TRAEFIK_TAG'] || 'v3.6.4'}" do
   command COMMAND
+  deploy_label 'traefik.enable=false'
   network :grafana_network
+  network :ingress_routing, name: 'ingress-routing', external: true
   volume 'traefik_data:/certificates'
   volume 'traefik_data:/letsencrypt'
   volume '/var/run/docker.sock:/var/run/docker.sock'
 
   config target: '/plugins-local/src/add_header_plugin/.traefik.yml', file: './add_header_plugin/src/.traefik.yml'
   config target: '/plugins-local/src/add_header_plugin/main.go', file: './add_header_plugin/src/main.go'
+
+  config target: '/etc/traefik_dynamic/dashboard.yml', file_content: {
+    'http' => {
+      'routers' => dashboard_routers,
+      'middlewares' => {
+        'dashboard-oauth' => {
+          'forwardAuth' => { 'address' => 'http://oauth2_oauth2_slim:7000/auth', 'authResponseHeadersRegex' => '^X-' }
+        },
+        'dashboard-prefix' => { 'addPrefix' => { 'prefix' => '/traefik' } },
+        'dashboard-root' => {
+          'redirectRegex' => {
+            'regex' => '^(https?://[^/]+/traefik)/?(\?.*)?$',
+            'replacement' => '${1}/dashboard/${2}'
+          }
+        }
+      }
+    }
+  }.to_yaml
 
   if ENV['ACME_DNS_API_BASE']
     env ACME_DNS_API_BASE: ENV['ACME_DNS_API_BASE'],

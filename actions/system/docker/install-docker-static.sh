@@ -169,22 +169,31 @@ install_buildx() {
     detect_arch
     buildx_version="${BUILDX_VERSION:-}"
     if [ -z "$buildx_version" ]; then
+        latest_buildx_json="$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest || true)"
         buildx_version="$(
-            curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+            printf '%s\n' "$latest_buildx_json" \
                 | sed -n 's/.*"tag_name": "\(v[0-9.]*\)".*/\1/p' \
                 | head -n 1
         )"
     fi
     if [ -z "$buildx_version" ]; then
-        echo "Unable to determine latest buildx version" >&2
-        exit 1
+        echo "Unable to determine latest buildx version; keeping existing plugin, if any" >&2
+        return 0
     fi
     plugin_dir="/usr/local/lib/docker/cli-plugins"
     mkdir -p "$plugin_dir"
-    curl -fsSL \
-        -o "$plugin_dir/docker-buildx" \
-        "https://github.com/docker/buildx/releases/download/${buildx_version}/buildx-${buildx_version}.linux-${buildx_arch}"
-    chmod 0755 "$plugin_dir/docker-buildx"
+    tmp_buildx="$(mktemp "$plugin_dir/.docker-buildx.XXXXXX")"
+    if curl -fsSL \
+        -o "$tmp_buildx" \
+        "https://github.com/docker/buildx/releases/download/${buildx_version}/buildx-${buildx_version}.linux-${buildx_arch}" && [ -s "$tmp_buildx" ]; then
+        if ! chmod 0755 "$tmp_buildx" || ! mv -f "$tmp_buildx" "$plugin_dir/docker-buildx"; then
+            rm -f "$tmp_buildx"
+            return 1
+        fi
+    else
+        echo "Unable to download buildx ${buildx_version}; keeping existing plugin, if any" >&2
+    fi
+    rm -f "$tmp_buildx"
 }
 
 install_docker_service() {
@@ -324,3 +333,6 @@ else
 fi
 
 docker -v
+if ! docker buildx version; then
+    echo "Buildx is unavailable; Docker runtime installation does not imply build readiness" >&2
+fi

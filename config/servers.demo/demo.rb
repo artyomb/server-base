@@ -14,5 +14,6 @@ Server :server_ru do
     GITLAB_RUNNER_TOKEN: 'glrt-...',
     REGISTRY_HOST: 'reg...'
   }
+  # better avoid the local login and use swarm deploy with registry auth, also swarmkit to monitor and update the credentials
   install :docker_login, credentials: 'login:passwd@reg...'
 end

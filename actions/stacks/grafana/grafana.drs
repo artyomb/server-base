@@ -5,10 +5,22 @@ Labels 'stack.product': 'tempo'
 
 Options name: 'grafana' , traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'] , tls_domain: ENV['TLS_DOMAIN']
 
-basic_auth = ENV.fetch('GRAFANA_BASIC_AUTH', ENV.fetch('TRAEFIK_BASIC_AUTH', 'admin:admin:demo'))
+basic_auth = ENV['GRAFANA_BASIC_AUTH'] || ENV['TRAEFIK_BASIC_AUTH']
+auth_parts = basic_auth.to_s.split(':', -1)
+unless (2..3).cover?(auth_parts.size) && auth_parts.none? { |part| part.strip.empty? }
+  raise 'GRAFANA_BASIC_AUTH or TRAEFIK_BASIC_AUTH is required in user:password[:salt] format'
+end
+
+telegram_token = ENV['TELEGRAM_BOT_TOKEN']
+telegram_chat = ENV['TELEGRAM_CHAT_ID']
+if telegram_token || telegram_chat
+  if telegram_token.to_s.strip.empty? || telegram_chat.to_s.strip.empty?
+    raise 'TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must both be nonempty'
+  end
+end
 
 Ingress grafana: [{ host: 'tempo.*', oauth_provider: 'oauth2_oauth2_slim:7000/auth' },
-                  { path: '/map/grafana', oauth_provider: 'oauth2_oauth2_slim:7000/auth' }
+                  { path: '/map/grafana', priority: 100, oauth_provider: 'oauth2_oauth2_slim:7000/auth' }
                  ],
         otlp_collector: [{ host: 'otel.*' },
                          { host: '*', path: '/otel', path_sub: ['^/otel(.*)', '$1'] },
@@ -189,9 +201,13 @@ end
 
 # https://grafana.com/docs/grafana/latest/breaking-changes/breaking-changes-v11-0/
 Service :grafana, image: 'grafana/grafana:latest', ports: 3000 do
-  env GF_ADMIN_USER: 'admin'
-  env GF_ADMIN_PASSWORD: ENV.fetch('GF_ADMIN_PASSWORD', 'admin')
-  env GF_AUTH_ANONYMOUS_ENABLED: false
+  env GF_SECURITY_ADMIN_USER: ENV.fetch('GF_ADMIN_USER', 'admin')
+  env GF_SECURITY_ADMIN_PASSWORD: ENV.fetch('GF_ADMIN_PASSWORD', 'admin')
+  env GF_AUTH_ANONYMOUS_ENABLED: true
+  env GF_AUTH_ANONYMOUS_ORG_NAME: 'Main Org.'
+  env GF_AUTH_ANONYMOUS_ORG_ROLE: 'Admin'
+  env GF_AUTH_BASIC_ENABLED: false
+  env GF_AUTH_DISABLE_LOGIN_FORM: true
   env GF_SERVER_SERVE_FROM_SUB_PATH: true
   env GF_SERVER_ROOT_URL: '/map/grafana'
   # env GF_SERVER_ROOT_URL: "#{ENV['SCHEME']}://#{ENV['MAIN_DOMAIN']}/map/grafana"
@@ -202,28 +218,7 @@ Service :grafana, image: 'grafana/grafana:latest', ports: 3000 do
     env NO_PROXY: "localhost,127.0.0.1,prometheus,victoriametrics,tempo,loki,#{ENV['DOCKER_NOPROXY']}"
   end
 
-  # env GF_AUTH_GENERIC_OAUTH_ENABLED: true
-  # env GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE: 'email'
-  # env GF_AUTH_GENERIC_OAUTH_USERNAME_ATTRIBUTE: 'admin'
-  # env GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH: 'email'
-  # env GF_AUTH_GENERIC_OAUTH_ALLOW_UPDATE: true
-  # env GF_AUTH_GENERIC_OAUTH_AUTO_ASSIGN_ORG_ROLE: 'Admin'
-  # env GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC: true
-  # env GF_AUTH_GENERIC_OAUTH_IGNORE_PASSWORD_UPDATE: true
-  # env GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: true
-  # # env GF_AUTH_GENERIC_OAUTH_SKIP_ORG_ROLE_SYNC_FOR_EXISTING_USERS: false
-  # env GF_AUTH_GENERIC_OAUTH_AUTH_ID_ATTRIBUTE: 'admin' # sub
-  # env GF_AUTH_OAUTH_ALLOW_INSECURE_EMAIL_LOOKUP: true
-  # env GF_AUTH_GENERIC_OAUTH_AUTO_ASSIGN_ORG_ROLE: 'Admin'
-  # env GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "'Admin'"
-  # # env GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH: "contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'"
-  # # env GF_USERS_ALLOW_DELETE_ADMIN: true
-  # env GF_AUTH_GENERIC_OAUTH_ALLOW_ASSIGN_GRAFANA_ADMIN: true
-  # env GF_AUTH_GENERIC_OAUTH_IDENTIFY_ATTRIBUTE_PATH: 'admin'
-  # env GF_AUTH_GENERIC_OAUTH_ID_TOKEN_ATTRIBUTE_NAME: 'admin' # 'sub'
-  # env GF_AUTH_GENERIC_OAUTH_AUTH_URL: "https://#{ENV['MAIN_DOMAIN']}/authorize"
-  # env GF_AUTH_GENERIC_OAUTH_TOKEN_URL: "http://oauth2_oauth2_slim:7000/oauth/token"
-  # env GF_AUTH_GENERIC_OAUTH_API_URL: "http://oauth2_oauth2_slim:7000/oauth/user"
+  # OAuth Slim gates both ingress routes; admitted users share organization Admin access.
 
   # [plugins]
   # allow_loading_unsigned_plugins = docker-events-analyzer
@@ -233,6 +228,7 @@ Service :grafana, image: 'grafana/grafana:latest', ports: 3000 do
 
   network :grafana_network
   network :default
+  volume target: '/var/lib/grafana', name: 'grafana_data'
   config :grafana_datasources_yaml, target: '/etc/grafana/provisioning/datasources/datasources.yaml'
   config :grafana_dashboards_yaml, target: '/etc/grafana/provisioning/dashboards/main.yaml'
   config target: '/var/lib/grafana/dashboards/traefik.json', file: './dashboards/traefik.json'
@@ -256,8 +252,12 @@ Service :grafana, image: 'grafana/grafana:latest', ports: 3000 do
     config target: '/var/lib/grafana/dashboards/nvidia_dcgm_v1.json', file: './dashboards/nvidia_dcgm_v1.json'
   end
 
+  if ENV['VLLM_DASHBOARD_ENABLED'] == 'true'
+    config target: '/var/lib/grafana/dashboards/vllm.json', file: './dashboards/vllm.json'
+  end
+
   config target: '/etc/grafana/provisioning/alerting/alert_rules.yaml', file: './alerting/alert_rules.yaml'
-  # config target: '/etc/grafana/provisioning/alerting/policies.yaml', file: './alerting/policies.yaml'
+  # Notification routing is managed separately; do not replace an existing policy tree.
 
   if ENV['TELEGRAM_BOT_TOKEN'] && ENV['TELEGRAM_CHAT_ID']
     config target: '/etc/grafana/provisioning/alerting/contact_points.yaml', file_content: <<~YAML

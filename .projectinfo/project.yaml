@@ -1,0 +1,5 @@
+schema_version: 1
+id: server-base
+name: Server Base
+summary: Упрощённый Ruby-инструмент настройки Docker Swarm и развёртывания базовых инфраструктурных стеков
+documentation: [README.md]

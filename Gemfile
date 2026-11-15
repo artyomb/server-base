@@ -1,3 +1,4 @@
 source 'https://rubygems.org'
 
-gem 'dry-stack'
+gem 'base64'
+gem 'dry-stack', '~> 0.1.62'

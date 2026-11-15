@@ -64,7 +64,7 @@
       }
     ]
   },
-  "description": "I created this cadvisor dashboard to show everything scraped from cadvisor.\r\n\r\n- Expanding all the rows may consume too much resources.\r\n- Limit the containers by selecting swarm_stack.\r\n- First few rows are stacked. Container rows are not.\r\n\r\nIf you have any issues or suggestions, please email mail@maoyin.eu.",
+  "description": "I created this cadvisor dashboard to show everything scraped from cadvisor.\r\n\r\n- Expanding all the rows may consume too much resources.\r\n- Limit the containers by selecting swarm_stack.\r\n- First few rows are stacked. Container rows are not.\r\n\r\nIf you have any issues or suggestions, please email mail@maoyin.eu.\r\n\r\nContainer panels exclude unnamed host and system cgroups. Use the Node Exporter dashboard for host memory totals. Standalone containers remain visible when swarm_stack is All.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -169,7 +169,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "max by (name) (container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
+              "expr": "max by (name) (container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
               "format": "time_series",
               "hide": false,
               "instant": true,
@@ -243,7 +243,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "max by (name) (container_last_seen{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
+              "expr": "max by (name) (container_last_seen{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
               "hide": false,
               "instant": true,
               "legendFormat": "{{name}}",
@@ -340,7 +340,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum by (state)(container_tasks_state{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "sum by (state)(container_tasks_state{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "__auto",
               "range": true,
@@ -439,7 +439,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_oom_events_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_oom_events_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -652,7 +652,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -752,7 +752,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -852,7 +852,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -951,7 +951,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval])) - on (name) (max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval])) + on (name) max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))) ",
+              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval])) - on (name) (max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval])) + on (name) max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))) ",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -1051,7 +1051,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_periods_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_periods_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -1151,7 +1151,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_throttled_periods_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_throttled_periods_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -1251,7 +1251,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_throttled_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_throttled_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -1350,7 +1350,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_cpu_load_average_10s{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_cpu_load_average_10s{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -1378,7 +1378,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Number of memory usage hits limits",
+          "description": "Rate of container_memory_failcnt: memory limit hits per second, not bytes or an OOM-kill count.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1388,7 +1388,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "",
+                "axisLabel": "limit hits/s",
                 "axisPlacement": "auto",
                 "axisSoftMin": 0,
                 "barAlignment": 0,
@@ -1433,7 +1433,7 @@
                   }
                 ]
               },
-              "unit": "none"
+              "unit": "ops"
             },
             "overrides": []
           },
@@ -1463,14 +1463,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_memory_failcnt{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_memory_failcnt{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "container_memory_failcnt",
+          "title": "Memory limit hits / second",
           "type": "timeseries"
         },
         {
@@ -1478,7 +1478,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Cumulative count of memory allocation failures.",
+          "description": "Rate of container page faults (pgfault, container scope), including minor and major faults. Page faults are part of normal memory management; this is not memory usage or an OOM count.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1488,7 +1488,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "",
+                "axisLabel": "faults/s",
                 "axisPlacement": "auto",
                 "axisSoftMin": 0,
                 "barAlignment": 0,
@@ -1533,7 +1533,7 @@
                   }
                 ]
               },
-              "unit": "none"
+              "unit": "ops"
             },
             "overrides": []
           },
@@ -1563,14 +1563,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_memory_failures_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_memory_failures_total{failure_type=\"pgfault\", scope=\"container\", instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_failures_total",
+          "title": "Page faults / second",
           "type": "timeseries"
         },
         {
@@ -1578,7 +1578,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": " Maximum memory usage recorded in bytes",
+          "description": "Highest memory usage recorded for each container, including cache. Peaks may occur at different times; their stacked sum is not the host peak or current usage.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1663,14 +1663,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_max_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_max_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "container_memory_max_usage_bytes",
+          "title": "Peak memory usage",
           "type": "timeseries"
         },
         {
@@ -1678,7 +1678,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Current memory usage in bytes, including all memory regardless of when it was accessed",
+          "description": "Current container memory usage, including filesystem cache. Host and system cgroups are excluded; the stacked total covers only the selected named containers.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1763,14 +1763,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_usage_bytes",
+          "title": "Memory usage (including cache)",
           "type": "timeseries"
         },
         {
@@ -1778,7 +1778,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Current working set in bytes.",
+          "description": "Container memory usage minus inactive file cache. This can still include active cache and kernel memory; it is not process RSS or total host memory.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1863,14 +1863,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_working_set_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_working_set_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_working_set_bytes",
+          "title": "Memory working set",
           "type": "timeseries"
         },
         {
@@ -1963,7 +1963,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_rss{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_rss{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2063,7 +2063,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_mapped_file{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_mapped_file{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2163,7 +2163,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_cache{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_cache{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2263,7 +2263,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_swap{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_swap{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2363,7 +2363,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2463,7 +2463,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_reservation_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_reservation_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2575,7 +2575,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_swap_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_swap_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -2688,7 +2688,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_bytes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_bytes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -2700,7 +2700,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_bytes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_bytes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -2799,7 +2799,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_packets_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_packets_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -2811,7 +2811,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_packets_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_packets_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -2922,7 +2922,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_errors_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_errors_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -2934,7 +2934,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_errors_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_errors_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -3033,7 +3033,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_packets_dropped_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_packets_dropped_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -3045,7 +3045,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_packets_dropped_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_packets_dropped_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -3159,7 +3159,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_blkio_device_usage_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_blkio_device_usage_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -3268,7 +3268,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_inodes_free{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_inodes_free{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}} free",
               "range": true,
@@ -3280,7 +3280,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_inodes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_inodes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -3379,7 +3379,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -3475,7 +3475,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_io_current{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_io_current{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -3574,7 +3574,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -3674,7 +3674,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_io_time_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_io_time_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": true,
               "legendFormat": "{{name}}",
               "range": true,
@@ -3686,7 +3686,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_io_time_weighted_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_io_time_weighted_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} weighed",
               "range": true,
@@ -3785,7 +3785,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_read_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_read_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} read",
               "range": true,
@@ -3797,7 +3797,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (-rate(container_fs_write_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (-rate(container_fs_write_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} write",
               "range": true,
@@ -3896,7 +3896,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_sector_reads_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_sector_reads_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -3908,7 +3908,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_sector_writes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_sector_writes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -4007,7 +4007,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_reads_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_reads_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -4019,7 +4019,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_writes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_writes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -4119,7 +4119,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_reads_merged_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_reads_merged_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -4131,7 +4131,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_writes_merged_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_writes_merged_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -4213,7 +4213,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4283,7 +4283,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4353,7 +4353,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4451,7 +4451,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "sum by (state)(container_tasks_state{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "sum by (state)(container_tasks_state{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "__auto",
               "range": true,
@@ -4519,7 +4519,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4589,7 +4589,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4659,7 +4659,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4729,7 +4729,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4799,7 +4799,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -4868,7 +4868,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
+              "expr": "max by (name) (container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -4935,7 +4935,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_last_seen{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
+              "expr": "max by (name) (container_last_seen{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}) * 1000",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -5003,7 +5003,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -5073,7 +5073,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -5143,7 +5143,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -5213,7 +5213,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
+              "expr": "container_start_time_seconds{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}",
               "format": "table",
               "hide": false,
               "instant": true,
@@ -5330,7 +5330,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_system_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} system",
               "range": true,
@@ -5342,7 +5342,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_user_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} user",
               "range": true,
@@ -5354,7 +5354,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_usage_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "interval": "",
               "legendFormat": "{{name}} usage",
@@ -5454,7 +5454,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_periods_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_periods_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -5553,7 +5553,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_throttled_periods_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_throttled_periods_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -5652,7 +5652,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_cpu_cfs_throttled_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_cpu_cfs_throttled_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -5750,7 +5750,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_cpu_load_average_10s{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_cpu_load_average_10s{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -5764,7 +5764,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Number of memory usage hits limits",
+          "description": "Rate of container_memory_failcnt: memory limit hits per second, not bytes or an OOM-kill count.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -5774,7 +5774,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "",
+                "axisLabel": "limit hits/s",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
@@ -5818,7 +5818,7 @@
                   }
                 ]
               },
-              "unit": "none"
+              "unit": "ops"
             },
             "overrides": [
               {
@@ -5873,14 +5873,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_memory_failcnt{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_memory_failcnt{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "container_memory_failcnt",
+          "title": "Memory limit hits / second",
           "type": "timeseries"
         },
         {
@@ -5888,7 +5888,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Cumulative count of memory allocation failures.",
+          "description": "Rate of container page faults (pgfault, container scope), including minor and major faults. Page faults are part of normal memory management; this is not memory usage or an OOM count.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -5898,7 +5898,7 @@
                 "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
-                "axisLabel": "",
+                "axisLabel": "faults/s",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
                 "drawStyle": "line",
@@ -5942,7 +5942,7 @@
                   }
                 ]
               },
-              "unit": "none"
+              "unit": "ops"
             },
             "overrides": []
           },
@@ -5972,14 +5972,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_memory_failures_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_memory_failures_total{failure_type=\"pgfault\", scope=\"container\", instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_failures_total",
+          "title": "Page faults / second",
           "type": "timeseries"
         },
         {
@@ -5987,7 +5987,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": " Maximum memory usage recorded in bytes",
+          "description": "Highest memory usage recorded for each container, including cache. Peaks may occur at different times; their stacked sum is not the host peak or current usage.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -6071,14 +6071,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_max_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_max_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
             }
           ],
-          "title": "container_memory_max_usage_bytes",
+          "title": "Peak memory usage",
           "type": "timeseries"
         },
         {
@@ -6086,7 +6086,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Current memory usage in bytes, including all memory regardless of when it was accessed",
+          "description": "Current container memory usage, including filesystem cache. Host and system cgroups are excluded; the stacked total covers only the selected named containers.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -6170,14 +6170,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_usage_bytes",
+          "title": "Memory usage (including cache)",
           "type": "timeseries"
         },
         {
@@ -6185,7 +6185,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Current working set in bytes.",
+          "description": "Container memory usage minus inactive file cache. This can still include active cache and kernel memory; it is not process RSS or total host memory.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -6269,14 +6269,14 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_working_set_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_working_set_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "container_memory_working_set_bytes",
+          "title": "Memory working set",
           "type": "timeseries"
         },
         {
@@ -6368,7 +6368,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_rss{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_rss{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6467,7 +6467,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_mapped_file{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_mapped_file{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6566,7 +6566,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_cache{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_cache{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6665,7 +6665,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_memory_swap{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_memory_swap{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6764,7 +6764,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6863,7 +6863,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_reservation_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_reservation_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -6974,7 +6974,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_spec_memory_swap_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_spec_memory_swap_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -7073,7 +7073,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_bytes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_bytes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -7085,7 +7085,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_bytes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_bytes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -7184,7 +7184,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_packets_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_packets_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -7196,7 +7196,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_packets_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_packets_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -7307,7 +7307,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_errors_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_errors_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -7319,7 +7319,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_errors_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_errors_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -7418,7 +7418,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_network_receive_packets_dropped_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_network_receive_packets_dropped_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} received",
               "range": true,
@@ -7430,7 +7430,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_network_transmit_packets_dropped_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_network_transmit_packets_dropped_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} transmitted",
               "range": true,
@@ -7529,7 +7529,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_blkio_device_usage_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_blkio_device_usage_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -7623,7 +7623,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_inodes_free{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_inodes_free{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}} free",
               "range": true,
@@ -7635,7 +7635,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_inodes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_inodes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -7734,7 +7734,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_limit_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_limit_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -7829,7 +7829,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (container_fs_io_current{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
+              "expr": "max by (name) (container_fs_io_current{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"})",
               "legendFormat": "{{name}}",
               "range": true,
               "refId": "A"
@@ -7927,7 +7927,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_usage_bytes{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_usage_bytes{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}}",
               "range": true,
@@ -8026,7 +8026,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_io_time_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_io_time_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": true,
               "legendFormat": "{{name}}",
               "range": true,
@@ -8038,7 +8038,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_io_time_weighted_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_io_time_weighted_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} weighed",
               "range": true,
@@ -8137,7 +8137,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_read_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_read_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} read",
               "range": true,
@@ -8149,7 +8149,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (-rate(container_fs_write_seconds_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (-rate(container_fs_write_seconds_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} write",
               "range": true,
@@ -8248,7 +8248,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_sector_reads_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_sector_reads_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -8260,7 +8260,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_sector_writes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_sector_writes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -8359,7 +8359,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_reads_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_reads_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -8371,7 +8371,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_writes_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_writes_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -8470,7 +8470,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "max by (name) (rate(container_fs_reads_merged_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "max by (name) (rate(container_fs_reads_merged_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} reads",
               "range": true,
@@ -8482,7 +8482,7 @@
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
-              "expr": "- max by (name) (rate(container_fs_writes_merged_total{instance=~\"$host_instance\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
+              "expr": "- max by (name) (rate(container_fs_writes_merged_total{instance=~\"$host_instance\", name!=\"\", name=~\"$container_name\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"}[$__rate_interval]))",
               "hide": false,
               "legendFormat": "{{name}} writes",
               "range": true,
@@ -8578,7 +8578,7 @@
           "type": "prometheus",
           "uid": "${DS_PROMETHEUS}"
         },
-        "definition": "label_values({__name__=~\"container.*\", instance=~\"$host_instance\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"},name)",
+        "definition": "label_values({__name__=~\"container.*\", name!=\"\", instance=~\"$host_instance\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"},name)",
         "hide": 0,
         "includeAll": true,
         "label": "container_name",
@@ -8586,7 +8586,7 @@
         "name": "container_name",
         "options": [],
         "query": {
-          "query": "label_values({__name__=~\"container.*\", instance=~\"$host_instance\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"},name)",
+          "query": "label_values({__name__=~\"container.*\", name!=\"\", instance=~\"$host_instance\", container_label_com_docker_stack_namespace=~\"$swarm_stack\"},name)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -8605,7 +8605,7 @@
   "timezone": "",
   "title": "cadvisor dashboard",
   "uid": "9AJV_mnIk",
-  "version": 7,
+  "version": 8,
   "weekStart": "",
   "gnetId": 19792
 }

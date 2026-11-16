@@ -29,6 +29,51 @@ Job = Struct.new(:id, :dir, :rel_dir, :name, keyword_init: true)
 Result = Struct.new(:job, :status, :duration, keyword_init: true)
 Status = Struct.new(:exitstatus, :success?, keyword_init: true)
 
+def positive_integer(name, default)
+  value = Integer(ENV.fetch(name, default).to_s, 10)
+  abort "#{name} must be a positive integer" unless value.positive?
+  value
+rescue ArgumentError
+  abort "#{name} must be a positive integer"
+end
+
+def signal_job(signal, pid)
+  Process.kill(signal, -pid)
+rescue Errno::ESRCH
+  # The group may have exited before the signal was sent.
+end
+
+def stop_job(wait_thr)
+  signal_job('TERM', wait_thr.pid)
+  sleep 1
+  # Descendants may survive TERM even after the direct child has exited.
+  signal_job('KILL', wait_thr.pid)
+  wait_thr.value
+end
+
+def run_job(cmd, prefix, timeout)
+  Open3.popen2e(*cmd, pgroup: true) do |stdin, stdout_err, wait_thr|
+    stdin.close
+    begin
+      Timeout.timeout(timeout) do
+        stdout_err.each_line { |line| puts "#{prefix} #{line.delete("\r").rstrip}" }
+        wait_thr.value
+      end
+    rescue Timeout::Error
+      stop_job(wait_thr)
+      puts "#{prefix} JOB_TIMEOUT #{timeout}s exceeded; local process group stopped. " \
+           'Remote work may be partially applied or still running; inspect the server before retrying.'
+      Status.new(exitstatus: 124, success?: false)
+    rescue StandardError
+      stop_job(wait_thr)
+      raise
+    end
+  end
+rescue StandardError => e
+  warn "#{prefix} failed: #{e.class}: #{e.message}"
+  Status.new(exitstatus: 1, success?: false)
+end
+
 jobs = server_files.map.with_index(1) do |file, idx|
   dir = File.dirname(file)
   rel_dir = Pathname.new(dir).relative_path_from(config_root).to_s
@@ -36,8 +81,8 @@ jobs = server_files.map.with_index(1) do |file, idx|
   Job.new(id: idx, dir: dir, rel_dir: rel_dir, name: File.basename(file, '.rb'))
 end
 
-max_workers = Integer(ENV.fetch('JOBS', Etc.nprocessors))
-job_timeout = Integer(ENV.fetch('JOB_TIMEOUT', 300))
+max_workers = [positive_integer('JOBS', Etc.nprocessors), jobs.size].min
+job_timeout = positive_integer('JOB_TIMEOUT', 300)
 log_path = root.join('parallel.log')
 File.write(log_path, "id\tserver\tdirectory\tstatus\tduration\n")
 
@@ -53,25 +98,11 @@ workers = Array.new(max_workers) do
       prefix = "[#{job.id} #{job.name}]"
       puts "#{prefix} started"
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      status = nil
-
-      Open3.popen2e(*cmd) do |_stdin, stdout_err, wait_thr|
-        begin
-          Timeout.timeout(job_timeout) do
-            stdout_err.each_line { |line| puts "#{prefix} #{line.delete("\r").rstrip}" }
-            status = wait_thr.value
-          end
-        rescue Timeout::Error
-          Process.kill('TERM', wait_thr.pid) rescue nil
-          sleep 1
-          Process.kill('KILL', wait_thr.pid) rescue nil
-          status = Status.new(exitstatus: 124, success?: false)
-          puts "#{prefix} JOB_TIMEOUT #{job_timeout}s exceeded"
-        end
+      status = run_job(cmd, prefix, job_timeout)
+      if status.respond_to?(:signaled?) && status.signaled?
+        status = Status.new(exitstatus: 128 + status.termsig, success?: false)
       end
-
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
-      status ||= Status.new(exitstatus: 1, success?: false)
 
       mutex.synchronize do
         File.open(log_path, 'a') { |f| f.puts "#{job.id}\t#{job.name}\t#{job.dir}\t#{status.exitstatus}\t#{elapsed.round(2)}" }
@@ -96,4 +127,7 @@ results.each do |r|
 end
 
 failures = results.reject { |r| r.status.success? }
-exit(failures.empty? ? 0 : 1)
+complete = results.size == jobs.size
+warn "Incomplete batch: #{results.size}/#{jobs.size} jobs recorded" unless complete
+puts "Completed #{results.size}/#{jobs.size} jobs; #{failures.size} failed"
+exit(complete && failures.empty? ? 0 : 1)

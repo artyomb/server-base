@@ -77,6 +77,27 @@ is also available. Exclude private configuration directories from Git locally.
 ruby bin/deploy-menu
 ```
 
+## Batch Deployment
+
+Deploy every server definition in a private directory, or select one by filename:
+
+```sh
+JOBS=2 JOB_TIMEOUT=300 ruby run-all.rb ../server-config
+ruby run-all.rb ../server-config demo
+```
+
+`JOBS` and `JOB_TIMEOUT` must be positive integers. They default to the local CPU
+count and 300 seconds per server. Jobs run without interactive input. Each job
+gets its own local process group; on timeout, the runner sends TERM, waits one
+second, then sends KILL to the group and waits for its direct child to exit.
+
+Timed-out jobs are recorded as status 124 in `parallel.log`. Other queued jobs
+continue, and the final summary includes completed and failed job counts. The
+batch exits unsuccessfully if any job fails or a result is missing.
+
+Stopping local processes does not roll back remote changes or guarantee that
+remote commands stop. After a timeout, inspect the affected server before retrying.
+
 ## CI/CD
 
 The [GitLab pipeline](.gitlab-ci.yml) builds a deployment image and runs it on a

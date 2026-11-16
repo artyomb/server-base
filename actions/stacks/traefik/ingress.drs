@@ -6,25 +6,14 @@ Deploy traefik: { placement: { constraints: ['node.role == manager'] } }
 
 Options name: 'simple-ingress', traefik: true, traefik_tls: !!ENV['TLS_DOMAIN'], tls_domain: ENV['TLS_DOMAIN']
 
-# File-provider routes can select api@internal without a container-port backend.
-dashboard_routers = {
-  'dashboard-path' => {
-    'rule' => 'Path(`/traefik`) || PathPrefix(`/traefik/`)',
-    'priority' => 100, 'middlewares' => ['dashboard-oauth', 'dashboard-root']
-  },
-  'dashboard-host' => {
-    'rule' => 'HostRegexp(`{name:traefik\\..*}`)',
-    'priority' => 99, 'middlewares' => ['dashboard-oauth', 'dashboard-prefix', 'dashboard-root']
-  }
+dashboard = {
+  service: 'api@internal', target_prefix: '/traefik',
+  redirect_root: '/traefik/dashboard/', oauth_provider: 'oauth2_oauth2_slim:7000/auth'
 }
-dashboard_routers.each do |name, router|
-  router['entryPoints'] = [ENV['TLS_DOMAIN'] ? 'https' : 'http']
-  router['service'] = 'api@internal'
-  next unless ENV['TLS_DOMAIN']
-
-  domain = name == 'dashboard-host' ? "traefik.#{ENV['TLS_DOMAIN']}" : ENV['TLS_DOMAIN']
-  router['tls'] = { 'certResolver' => 'le', 'domains' => [{ 'main' => domain }] }
-end
+Ingress traefik: [
+  { **dashboard, mount: '/traefik', priority: 100 },
+  { **dashboard, host: 'traefik.*', priority: 99 }
+]
 
 port_number = lambda do |name, default|
   value = ENV.fetch(name, default).to_s
@@ -152,33 +141,13 @@ elsif !!ENV['TLS_DOMAIN']
 end
 Service :traefik, image: "traefik:#{ENV['TRAEFIK_TAG'] || 'v3.6.4'}" do
   command COMMAND
-  deploy_label 'traefik.enable=false'
   network :grafana_network
-  network :ingress_routing, name: 'ingress-routing', external: true
   volume 'traefik_data:/certificates'
   volume 'traefik_data:/letsencrypt'
   volume '/var/run/docker.sock:/var/run/docker.sock'
 
   config target: '/plugins-local/src/add_header_plugin/.traefik.yml', file: './add_header_plugin/src/.traefik.yml'
   config target: '/plugins-local/src/add_header_plugin/main.go', file: './add_header_plugin/src/main.go'
-
-  config target: '/etc/traefik_dynamic/dashboard.yml', file_content: {
-    'http' => {
-      'routers' => dashboard_routers,
-      'middlewares' => {
-        'dashboard-oauth' => {
-          'forwardAuth' => { 'address' => 'http://oauth2_oauth2_slim:7000/auth', 'authResponseHeadersRegex' => '^X-' }
-        },
-        'dashboard-prefix' => { 'addPrefix' => { 'prefix' => '/traefik' } },
-        'dashboard-root' => {
-          'redirectRegex' => {
-            'regex' => '^(https?://[^/]+/traefik)/?(\?.*)?$',
-            'replacement' => '${1}/dashboard/${2}'
-          }
-        }
-      }
-    }
-  }.to_yaml
 
   if ENV['ACME_DNS_API_BASE']
     env ACME_DNS_API_BASE: ENV['ACME_DNS_API_BASE'],

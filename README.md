@@ -23,7 +23,7 @@ install steps: `base`, `docker`, `docker_resolved`, and `system_check`.
 - Ruby 3.1.2 or newer and Bundler
 - root SSH access to the target server
 - Docker-capable Ubuntu or RED OS target
-- `dry-stack` 0.1.63 or a newer 0.1.x release, installed through Bundler
+- `dry-stack` 0.1.64 or a newer 0.1.x release, installed through Bundler
 
 Install dependencies:
 
@@ -204,6 +204,8 @@ configured for `traefik.<your-domain>`, `/dashboard/` on that hostname also work
 Both dashboard and API routes require OAuth2 Slim login; deploy `oauth2_slim` on
 the shared ingress network before using them. The dashboard uses `api@internal`
 and does not expose an unauthenticated port 8080 listener.
+Its path and hostname routes use dry-stack's native `mount`, `target_prefix`,
+`redirect_root`, and `service` options, with OAuth before redirects and rewriting.
 
 Optional inode, kernel OOM and Swarm replica diagnostics:
 [cronfix configuration and behavior](actions/system/cronfix/README.md).

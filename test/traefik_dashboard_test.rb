@@ -7,6 +7,7 @@ require 'yaml'
 class TraefikDashboardTest < Minitest::Test
   ROOT = File.expand_path('..', __dir__)
   ACTION = File.join(ROOT, 'actions/stacks/traefik')
+  ROUTERS = %w[simple-ingress_traefik-0 simple-ingress_traefik-1].freeze
 
   def render(overrides = {})
     env = ENV.keys.grep(/\A(?:TRAEFIK_|TLS_|ACME_|CI_)/).to_h { |key| [key, nil] }
@@ -20,45 +21,41 @@ class TraefikDashboardTest < Minitest::Test
       assert status.success?, err
       compose = YAML.safe_load(out)
       service = compose.fetch('services').fetch('traefik')
-      mounted = service.fetch('configs').find { |config| config['target'] == '/etc/traefik_dynamic/dashboard.yml' }
-      refute_nil mounted, 'Dashboard file-provider config must be mounted'
-      path = compose.fetch('configs').fetch(mounted.fetch('source')).fetch('file')
-      dashboard = YAML.safe_load(File.read(File.expand_path(path, dir)))
-      [compose, service, dashboard.fetch('http')]
+      labels = service.fetch('deploy').fetch('labels').to_h { |label| label.split('=', 2) }
+      [compose, service, labels.transform_values { |value| value.gsub('$$', '$') }]
     end
   end
 
-  def test_dashboard_and_compatibility_routes_require_oauth_without_a_port_backend
+  def test_dashboard_and_compatibility_routes_require_oauth_and_use_the_internal_backend
     [nil, 'example.test'].each do |domain|
-      compose, service, http = render('TLS_DOMAIN' => domain)
-      routers = http.fetch('routers')
-      assert_equal %w[dashboard-host dashboard-path], routers.keys.sort
-      assert_equal 'Path(`/traefik`) || PathPrefix(`/traefik/`)', routers['dashboard-path']['rule']
-      assert_equal 'HostRegexp(`{name:traefik\..*}`)', routers['dashboard-host']['rule']
-      assert_equal %w[dashboard-oauth dashboard-root], routers['dashboard-path']['middlewares']
-      assert_equal %w[dashboard-oauth dashboard-prefix dashboard-root], routers['dashboard-host']['middlewares']
-      assert_operator routers['dashboard-path']['priority'], :>, routers['dashboard-host']['priority']
-      assert_operator routers['dashboard-path']['priority'], :>, 'HostRegexp(`{name:application\.example\.test}`)'.length
-      assert_operator routers['dashboard-path']['priority'], :<, 999
-      routers.each_value do |router|
-        assert_equal 'api@internal', router['service']
-        assert_equal [domain ? 'https' : 'http'], router['entryPoints']
-        assert_equal 'dashboard-oauth', router['middlewares'].first
+      compose, service, labels = render('TLS_DOMAIN' => domain)
+      path, host = ROUTERS.map { |name| "traefik.http.routers.#{name}" }
+      assert_equal ROUTERS, labels.keys.filter_map { |key| key[/\Atraefik\.http\.routers\.(.+)\.service\z/, 1] }
+      assert_equal '(Path(`/traefik`) || PathPrefix(`/traefik/`))', labels["#{path}.rule"]
+      assert_equal 'HostRegexp(`{name:traefik\..*}`)', labels["#{host}.rule"]
+      assert_equal '100', labels["#{path}.priority"]
+      assert_equal '99', labels["#{host}.priority"]
+      assert_operator labels["#{path}.priority"].to_i, :>, 'HostRegexp(`{name:application\.example\.test}`)'.length
+      assert_operator labels["#{path}.priority"].to_i, :<, 999
+      ROUTERS.each_with_index do |name, index|
+        assert_equal 'api@internal', labels["traefik.http.routers.#{name}.service"]
+        middlewares = ["#{name}_oauth_provider", "#{name}-mount-redirect"]
+        middlewares << "#{name}-target" if index == 1
+        assert_equal middlewares.join(','), labels["traefik.http.routers.#{name}.middlewares"]
+        oauth = "traefik.http.middlewares.#{name}_oauth_provider.forwardauth"
+        assert_equal 'http://oauth2_oauth2_slim:7000/auth', labels["#{oauth}.address"]
+        assert_equal '^X-', labels["#{oauth}.authResponseHeadersRegex"]
+        refute labels.key?("#{oauth}.trustForwardHeader")
       end
-
-      oauth = http.fetch('middlewares').fetch('dashboard-oauth').fetch('forwardAuth')
-      assert_equal 'http://oauth2_oauth2_slim:7000/auth', oauth['address']
-      assert_equal '^X-', oauth['authResponseHeadersRegex']
-      refute oauth.key?('trustForwardHeader')
-      assert_equal({ 'addPrefix' => { 'prefix' => '/traefik' } }, http['middlewares']['dashboard-prefix'])
-      refute http.key?('services'), 'Internal service routing needs no network backend'
-      refute http.to_yaml.include?('basicAuth')
+      assert_equal '/traefik', labels["traefik.http.middlewares.#{ROUTERS[1]}-target.addprefix.prefix"]
+      refute labels.keys.any? { |key| key.include?('stripprefix') || key.include?('basicauth') }
+      assert_equal({ 'traefik.http.services.simple-ingress_traefik-unused.loadbalancer.server.port' => '9999' },
+                   labels.select { |key, _| key.start_with?('traefik.http.services.') })
+      refute service.fetch('configs').any? { |config| config['target'] == '/etc/traefik_dynamic/dashboard.yml' }
 
       assert_includes service.fetch('command'), '--api.basePath=/traefik'
       refute service['command'].any? { |arg| arg.start_with?('--api.insecure', '--entrypoints.traefik.') }
-      labels = service.fetch('deploy').fetch('labels').to_h { |label| label.split('=', 2) }
-      assert_equal 'false', labels['traefik.enable']
-      refute labels.keys.any? { |key| key.start_with?('traefik.http.routers.') }
+      assert_equal 'true', labels['traefik.enable']
       assert service.fetch('networks').key?('ingress_routing')
       assert_equal({ 'external' => true, 'name' => 'ingress-routing' }, compose['networks']['ingress_routing'])
       assert service['networks'].key?('grafana_network')
@@ -66,28 +63,43 @@ class TraefikDashboardTest < Minitest::Test
   end
 
   def test_tls_domains_are_preserved_and_plain_http_has_no_tls_routes
-    _compose, _service, http = render('TLS_DOMAIN' => 'example.test')
-    expected = { 'dashboard-path' => 'example.test', 'dashboard-host' => 'traefik.example.test' }
+    _compose, _service, labels = render('TLS_DOMAIN' => 'example.test')
+    expected = ROUTERS.zip(%w[example.test traefik.example.test]).to_h
     expected.each do |name, domain|
-      assert_equal({ 'certResolver' => 'le', 'domains' => [{ 'main' => domain }] }, http['routers'][name]['tls'])
+      prefix = "traefik.http.routers.#{name}.tls"
+      assert_equal 'true', labels[prefix]
+      assert_equal 'le', labels["#{prefix}.certresolver"]
+      assert_equal domain, labels["#{prefix}.domains[0].main"]
     end
     _compose, _service, plain = render
-    assert plain['routers'].values.none? { |router| router.key?('tls') }
+    refute plain.keys.any? { |key| key.start_with?('traefik.http.routers.') && key.include?('.tls') }
   end
 
   def test_canonical_root_redirect_covers_both_slash_forms_without_matching_api_or_assets
-    _compose, _service, http = render
-    redirect = http.fetch('middlewares').fetch('dashboard-root').fetch('redirectRegex')
-    assert_equal '${1}/dashboard/${2}', redirect['replacement']
-    regex = Regexp.new(redirect.fetch('regex'))
+    _compose, _service, labels = render
+    prefix = "traefik.http.middlewares.#{ROUTERS[0]}-mount-redirect.redirectregex"
+    assert_equal '${1}/traefik/dashboard/${2}', labels["#{prefix}.replacement"]
+    assert_equal 'false', labels["#{prefix}.permanent"]
+    regex = Regexp.new(labels.fetch("#{prefix}.regex"))
     %w[http https].product(['', '/'], ['', '?test=value']).each do |scheme, slash, query|
       match = regex.match("#{scheme}://example.test:18443/traefik#{slash}#{query}")
       refute_nil match
-      assert_equal "#{scheme}://example.test:18443/traefik", match[1]
+      assert_equal "#{scheme}://example.test:18443", match[1]
       assert_equal query, match[2].to_s
     end
     %w[/traefikevil /traefik/dashboard/ /traefik/api/overview /traefik/dashboard/assets/index.js].each do |path|
       refute_match regex, "https://example.test#{path}"
+    end
+
+    prefix = "traefik.http.middlewares.#{ROUTERS[1]}-mount-redirect.redirectregex"
+    assert_equal '${1}/traefik/dashboard/${2}', labels["#{prefix}.replacement"]
+    regex = Regexp.new(labels.fetch("#{prefix}.regex"))
+    match = regex.match('https://traefik.example.test/?next=%2Fapi&x=1')
+    refute_nil match
+    assert_equal 'https://traefik.example.test', match[1]
+    assert_equal '?next=%2Fapi&x=1', match[2]
+    %w[/dashboard/ /api/overview /traefik /traefik/].each do |path|
+      refute_match regex, "https://traefik.example.test#{path}"
     end
   end
 
@@ -104,7 +116,7 @@ class TraefikDashboardTest < Minitest::Test
       end
       expected << { 'target' => 5432, 'published' => postgres.to_i, 'protocol' => 'tcp', 'mode' => 'ingress' } if postgres
       assert_equal expected, ports
-      refute ports.any? { |port| port['target'] == 8080 }
+      refute ports.any? { |port| [8080, 9999].include?(port['target']) }
       assert_equal !!postgres, service['command'].include?('--entrypoints.postgres.address=:5432')
       assert_includes service['command'], '--metrics.otlp=true'
       assert_includes service['command'], '--providers.file.directory=/etc/traefik_dynamic'

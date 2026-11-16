@@ -97,6 +97,9 @@ Service :victoriametrics, image: 'victoriametrics/victoria-metrics:latest', port
 end
 
 Service :vmagent, image: 'victoriametrics/vmagent:latest' do
+  # Disk backlog uses the minimum supported cap: 512 MiB + 128 bytes.
+  # Smaller nonzero maxDiskUsagePerURL values round up; 0 means unlimited.
+  # This limits queued metrics on disk, independently of the container RAM limit.
   command %w[
    -promscrape.config=/etc/vmagent.yaml
    -remoteWrite.url=http://victoriametrics:8428/api/v1/write

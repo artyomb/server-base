@@ -23,9 +23,10 @@ Action :swarm, depends: [:docker] do
                     true
                   end
 
+    # The shared text uploader may append a trailing blank line.
     firewall_ok = !firewall_enabled.call(params) || (
-      read_file('/usr/local/sbin/swarm-block-ports', default: '') == File.read(firewall_script) &&
-      read_file('/etc/systemd/system/swarm-block-ports.service', default: '') == File.read(firewall_unit) &&
+      read_file('/usr/local/sbin/swarm-block-ports', default: '').rstrip == File.read(firewall_script).rstrip &&
+      read_file('/etc/systemd/system/swarm-block-ports.service', default: '').rstrip == File.read(firewall_unit).rstrip &&
       capture('systemctl is-enabled --quiet swarm-block-ports.service && systemctl is-active --quiet swarm-block-ports.service && /usr/local/sbin/swarm-block-ports --check >/dev/null 2>&1 && echo ok || true').strip == 'ok'
     )
     loki_enabled && networks_ok && firewall_ok

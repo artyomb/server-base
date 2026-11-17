@@ -1,5 +1,5 @@
 [Unit]
-Description=Block external connections to Swarm Loki
+Description=Block public access to Swarm internals and Loki
 After=docker.service network-online.target
 Wants=network-online.target
 Requires=docker.service

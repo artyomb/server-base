@@ -157,8 +157,10 @@ notifications; they do not deploy or contact a server.
 - `TRAEFIK_BASIC_AUTH`: shared fallback for `GRAFANA_BASIC_AUTH` and
   `INSIGHT_BASIC_AUTH`. Traefik's dashboard uses OAuth2 Slim and does not use this setting.
 - `TRAEFIK_POSTGRES_PORT`: optional published PostgreSQL TCP port (1–65535),
-  independent of TLS. Set it explicitly to retain PostgreSQL access when
-  updating an existing TLS ingress; the previous implicit port was 5432.
+  independent of TLS; unpublished when unset. Set it explicitly only when a
+  dedicated PostgreSQL port is needed. PostgreSQL over port 443 requires
+  a TCP SNI route to a database service and a client using TLS with SNI;
+  removing this setting does not create that route.
 - `TRAEFIK_HTTP_PORT` / `TRAEFIK_HTTPS_PORT`: published ingress ports, default
   80 / 443. HTTPS publishes both TCP and UDP; HTTP/3 advertises this HTTPS port.
 - `ACME_EMAIL`: ACME registration email when TLS is enabled.
@@ -194,10 +196,13 @@ retained. Custom aliases are preserved but do not replace this default alias.
 A disabled default alias requires manual attention. See the PostgreSQL port
 setting above when updating an existing ingress.
 
-Swarm setup installs `swarm-block-ports.service` to reject external TCP connections
-to Loki's published port 3100 on the default-route interfaces, for IPv4 and IPv6.
-Local host log drivers retain access. The rules are checked on each deployment and
-reapplied after Docker restarts and reboots. Use `install :swarm, block_ports: false`
+Swarm setup installs `swarm-block-ports.service` to reject traffic arriving on
+default-route interfaces, for IPv4 and IPv6: Loki's published TCP port 3100,
+Swarm host TCP ports 2377/7946, and UDP ports 7946/4789. Local host log drivers
+retain access. For multiple Swarm nodes, use a separate private/VPN interface for
+peer traffic or configure equivalent filtering with explicit peer allowances.
+The rules are checked on each deployment and reapplied after Docker restarts
+and reboots. Use `install :swarm, block_ports: false`
 only when equivalent filtering is managed elsewhere; this skips management and
 does not remove existing rules. Loki logging uses the driver's default batch size.
 

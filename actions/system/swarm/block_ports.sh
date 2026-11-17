@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-# Adapted from Base: keep Loki reachable locally, reject public-interface traffic.
+# Keep Loki and Swarm internals reachable locally and over private interfaces.
+# Public-interface peer traffic must be allowed separately before adding nodes.
 # Match the original port because Docker DNAT runs before the filter chains.
 mode=${1:---apply}
 case "$mode" in --apply|--check) ;; *) echo 'Usage: swarm-block-ports [--apply|--check]' >&2; exit 2 ;; esac
@@ -25,10 +26,18 @@ protect_chain() {
   for interface in $interfaces; do
     if [ "$match" = original ]; then
       "$ipt" -w "$operation" "$chain" -i "$interface" -p tcp -m conntrack --ctdir ORIGINAL --ctorigdstport 3100 -j REJECT --reject-with tcp-reset
+      count=$((count + 1))
     else
-      "$ipt" -w "$operation" "$chain" -i "$interface" -p tcp --dport 3100 -j REJECT --reject-with tcp-reset
+      for port in 3100 2377 7946; do
+        "$ipt" -w "$operation" "$chain" -i "$interface" -p tcp --dport "$port" -j REJECT --reject-with tcp-reset
+        count=$((count + 1))
+      done
+      for port in 7946 4789; do
+        # REJECT defaults to the port-unreachable response for this IP family.
+        "$ipt" -w "$operation" "$chain" -i "$interface" -p udp --dport "$port" -j REJECT
+        count=$((count + 1))
+      done
     fi
-    count=$((count + 1))
   done
   "$ipt" -w "$operation" "$chain" -j RETURN
   if [ "$mode" = '--apply' ]; then

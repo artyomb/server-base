@@ -190,7 +190,10 @@ local `.env` files to a public repository.
 ## Operational Notes
 
 Docker setup preserves an existing client configuration. Swarm setup creates the
-shared overlay networks on managers; automatic worker joining is not implemented.
+shared overlay networks on managers. An inactive host with `manager_ip` in its
+profile stops before initialization. Join it to the existing cluster with a
+worker token from its manager, then rerun deployment. An inactive host without
+that setting initializes its own Swarm.
 An enabled `loki:latest` alias satisfies stack logging; its driver version is
 retained. Custom aliases are preserved but do not replace this default alias.
 A disabled default alias requires manual attention. See the PostgreSQL port
@@ -199,12 +202,28 @@ setting above when updating an existing ingress.
 Swarm setup installs `swarm-block-ports.service` to reject traffic arriving on
 default-route interfaces, for IPv4 and IPv6: Loki's published TCP port 3100,
 Swarm host TCP ports 2377/7946, and UDP ports 7946/4789. Local host log drivers
-retain access. For multiple Swarm nodes, use a separate private/VPN interface for
-peer traffic or configure equivalent filtering with explicit peer allowances.
+retain access. If peers use a default-route interface, list the other nodes'
+individual IP addresses on each host, e.g. `install :swarm, trusted_peers: ['192.0.2.10']`.
+The default list is empty. Check the route to each peer in both directions.
+The exceptions cover only the four Swarm port/protocol combinations above.
+Loki stays blocked on those interfaces, including for trusted peers.
 The rules are checked on each deployment and reapplied after Docker restarts
 and reboots. Use `install :swarm, block_ports: false`
 only when equivalent filtering is managed elsewhere; this skips management and
 does not remove existing rules. Loki logging uses the driver's default batch size.
+
+When recovering a worker, check Docker's Swarm error, the node certificate's
+expiry, both Docker Engine versions and connectivity to the original manager.
+A missing ALPN negotiation during a join can indicate incompatible engines.
+Keep compatibility overrides and any required host routes in the affected site's
+configuration. Verify the manager sees the worker as Ready and that containers
+on different nodes can reach each other over an overlay.
+
+Base checks time synchronization with a bounded `chronyc waitsync`. If public
+NTP is unreachable, configure `install :base, ntp_servers: ['ntp.example.org']`
+in the host profile. A timeout causes readiness to fail. During repair, Base
+tries the configured sources and then the fallback sources, reporting
+`chronyc -n sources` if synchronization still fails.
 
 The runner action places GitLab Runner and its SSH agent on the deployment node.
 Job containers mount the agent's named socket volume at `/run/ssh-agent` read-only;

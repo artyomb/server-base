@@ -1,3 +1,4 @@
+require 'ipaddr'
 require 'shellwords'
 
 Action :swarm, depends: [:docker] do
@@ -6,7 +7,16 @@ Action :swarm, depends: [:docker] do
   firewall_unit = File.join(__dir__, 'swarm-block-ports.service')
   firewall_enabled = ->(params) { !%w[false 0 no off].include?(params.fetch(:block_ports, true).to_s.downcase) }
 
+  firewall_content = lambda do |params|
+    peers = Array(params[:trusted_peers]).map do |value|
+      raise ArgumentError, 'trusted_peers must contain individual IP addresses' unless value.is_a?(String) && value.match?(/\A[0-9a-f:.]+\z/i)
+      IPAddr.new(value).to_s
+    end.uniq.sort
+    File.read(firewall_script).sub("trusted_peers=''") { "trusted_peers='#{peers.join(' ')}'" }
+  end
+
   check do |params|
+    expected_firewall = firewall_content.call(params)
     swarm_state = capture("docker info --format '{{.Swarm.LocalNodeState}}'").strip
     raise 'Docker returned an empty Swarm state' if swarm_state.empty?
     next false unless swarm_state == 'active'
@@ -25,7 +35,7 @@ Action :swarm, depends: [:docker] do
 
     # The shared text uploader may append a trailing blank line.
     firewall_ok = !firewall_enabled.call(params) || (
-      read_file('/usr/local/sbin/swarm-block-ports', default: '').rstrip == File.read(firewall_script).rstrip &&
+      read_file('/usr/local/sbin/swarm-block-ports', default: '').rstrip == expected_firewall.rstrip &&
       read_file('/etc/systemd/system/swarm-block-ports.service', default: '').rstrip == File.read(firewall_unit).rstrip &&
       capture('systemctl is-enabled --quiet swarm-block-ports.service && systemctl is-active --quiet swarm-block-ports.service && /usr/local/sbin/swarm-block-ports --check >/dev/null 2>&1 && echo ok || true').strip == 'ok'
     )
@@ -33,12 +43,8 @@ Action :swarm, depends: [:docker] do
   end
 
   apply do |params|
-    join_token = nil
-    manager_ip = params[:manager_ip]
+    expected_firewall = firewall_content.call(params)
     advertise_addr = params[:advertise_addr]
-    # if manager_ip && !manager_ip.empty?
-    #   join_token = `ssh -o StrictHostKeyChecking=no #{manager_ip} docker swarm join-token -q worker`.strip
-    # end
     script = <<~SH
       set -euo pipefail
 
@@ -66,29 +72,30 @@ Action :swarm, depends: [:docker] do
         inactive) ;;
         *)
           echo "Swarm is not ready (state: $swarm_state); refusing to initialize" >&2
+          docker info --format '{{.Swarm.Error}}' >&2 || true
           exit 1
           ;;
       esac
 
       if [ "$swarm_state" = "inactive" ]; then
-        if [ -n "#{join_token}" ]; then
-          echo "Joining Swarm master: #{manager_ip}:2377"
-          docker swarm join --token "#{join_token}" #{manager_ip}:2377
-        else
-          advertise_addr="$(pick_advertise_addr)"
-          if [ -z "$advertise_addr" ]; then
-            echo "Failed to auto-detect advertise address for swarm init" >&2
-            exit 1
-          fi
-          echo "Initialize Swarm master"
-          echo "Using advertise address: $advertise_addr"
-          docker swarm init --advertise-addr "$advertise_addr"
+        if #{params.key?(:manager_ip)}; then
+          echo "Worker is inactive with manager_ip configured. Join the existing Swarm before deploying." >&2
+          exit 1
         fi
+        advertise_addr="$(pick_advertise_addr)"
+        if [ -z "$advertise_addr" ]; then
+          echo "Failed to auto-detect advertise address for swarm init" >&2
+          exit 1
+        fi
+        echo "Initialize Swarm master"
+        echo "Using advertise address: $advertise_addr"
+        docker swarm init --advertise-addr "$advertise_addr"
       fi
 
       swarm_state="$(docker info --format '{{.Swarm.LocalNodeState}}')"
       if [ "$swarm_state" != "active" ]; then
         echo "Swarm is not active after initialization (state: $swarm_state)" >&2
+        docker info --format '{{.Swarm.Error}}' >&2 || true
         exit 1
       fi
       manager="$(docker info --format '{{.Swarm.ControlAvailable}}')"
@@ -139,7 +146,7 @@ Action :swarm, depends: [:docker] do
     remote(script)
     if firewall_enabled.call(params)
       exec('install -d -m 0755 /usr/local/sbin')
-      write_file('/usr/local/sbin/swarm-block-ports', File.read(firewall_script))
+      write_file('/usr/local/sbin/swarm-block-ports', expected_firewall)
       write_file('/etc/systemd/system/swarm-block-ports.service', File.read(firewall_unit))
       exec('chmod 0755 /usr/local/sbin/swarm-block-ports && systemctl daemon-reload && systemctl enable swarm-block-ports.service && systemctl restart swarm-block-ports.service')
       exec('/usr/local/sbin/swarm-block-ports --check')

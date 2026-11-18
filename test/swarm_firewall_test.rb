@@ -8,6 +8,30 @@ require_relative '../lib/deploy'
 class SwarmFirewallTest < Minitest::Test
   SCRIPT = File.expand_path('../actions/system/swarm/block_ports.sh', __dir__)
 
+  def test_profile_peers_are_validated_and_embedded_in_the_installed_script
+    registry = Deploy::Actions::Registry.new
+    Deploy::Actions::Loader.new(File.dirname(SCRIPT), registry).load_all
+    action = registry.fetch(:swarm)
+    files, commands = {}, []
+    context = Object.new
+    context.define_singleton_method(:remote) { |command| commands << command }
+    context.define_singleton_method(:exec) { |command| commands << command }
+    context.define_singleton_method(:write_file) { |path, contents| files[path] = contents }
+    apply = action.instance_variable_get(:@apply)
+    context.instance_exec({ trusted_peers: ['2001:db8::10', '192.0.2.10', '192.0.2.10'] }, &apply)
+    script = files.fetch('/usr/local/sbin/swarm-block-ports')
+    assert_includes script, "trusted_peers='192.0.2.10 2001:db8::10'"
+    _, error, status = Open3.capture3('sh', '-n', stdin_data: script)
+    assert status.success?, error
+    ['0.0.0.0/0', 'example.test', '192.0.2.10; touch /tmp/bad'].each do |peer|
+      commands.clear
+      files.clear
+      assert_raises(ArgumentError) { context.instance_exec({ trusted_peers: [peer] }, &apply) }
+      assert_empty commands
+      assert_empty files
+    end
+  end
+
   def test_uploaded_files_satisfy_readiness_but_content_drift_does_not
     Dir.mktmpdir('swarm-firewall-upload-') do |dir|
       ssh = Object.new
@@ -38,6 +62,7 @@ class SwarmFirewallTest < Minitest::Test
       Deploy::Actions::Loader.new(File.dirname(SCRIPT), registry).load_all
       check = registry.fetch(:swarm).instance_variable_get(:@check)
       assert context.instance_exec({}, &check)
+      refute context.instance_exec({ trusted_peers: ['192.0.2.10'] }, &check)
       files.each_value do |path|
         original = File.read(path)
         File.write(path, original.sub(/Swarm/, 'Changed'))
@@ -98,18 +123,58 @@ class SwarmFirewallTest < Minitest::Test
         File.chmod(0o700, path)
       end
       env = { 'PATH' => "#{dir}:#{ENV.fetch('PATH')}", 'FIREWALL_TEST_STATE' => state_path, 'EXT_IF' => 'wan0 wan1' }
+      test_script = SCRIPT
       run = lambda do |mode, expected = true|
-        _out, err, status = Open3.capture3(env, 'sh', SCRIPT, mode)
+        _out, err, status = Open3.capture3(env, 'sh', test_script, mode)
         assert_equal expected, status.success?, "#{mode}: #{err}"
       end
       run.call('--check', false)
       run.call('--apply')
       run.call('--check')
       first = JSON.parse(File.read(state_path))
+      families = File.exist?('/proc/net/if_inet6') ? %w[iptables ip6tables] : %w[iptables]
       run.call('--apply')
       run.call('--check')
       assert_equal first, JSON.parse(File.read(state_path))
-      families = File.exist?('/proc/net/if_inet6') ? %w[iptables ip6tables] : %w[iptables]
+      test_script = File.join(dir, 'peers.sh')
+      File.write(test_script, File.read(SCRIPT).sub("trusted_peers=''", "trusted_peers='192.0.2.10 2001:db8::10'"))
+      run.call('--check', false)
+      run.call('--apply')
+      run.call('--check')
+      with_peers = JSON.parse(File.read(state_path))
+      families.each do |family|
+        input = with_peers.fetch(family).fetch('SWARM-BLOCK-INPUT')
+        assert_equal 15, input.size
+        peer = family == 'iptables' ? '192.0.2.10' : '2001:db8::10'
+        input.take(4).each do |rule|
+          assert_equal peer, rule[rule.index('-s') + 1]
+          assert_equal 'RETURN', rule[rule.index('-j') + 1]
+          assert_includes %w[2377,7946 7946,4789], rule[rule.index('--dports') + 1]
+        end
+        assert_equal first.fetch(family).fetch('SWARM-BLOCK-INPUT'), input.drop(4)
+        assert_equal first.fetch(family).fetch('SWARM-BLOCK-PUBLISHED'), with_peers.fetch(family).fetch('SWARM-BLOCK-PUBLISHED')
+      end
+      run.call('--apply')
+      assert_equal with_peers, JSON.parse(File.read(state_path))
+      misplaced = Marshal.load(Marshal.dump(with_peers))
+      input = misplaced.fetch('iptables').fetch('SWARM-BLOCK-INPUT')
+      input[0], input[4] = input[4], input[0]
+      File.write(state_path, JSON.generate(misplaced))
+      run.call('--check', false)
+      run.call('--apply')
+      run.call('--check')
+      # An unconditional return ahead of rejections would expose all protected ports.
+      misplaced = Marshal.load(Marshal.dump(with_peers))
+      input = misplaced.fetch('iptables').fetch('SWARM-BLOCK-INPUT')
+      input[0], input[-1] = input[-1], input[0]
+      File.write(state_path, JSON.generate(misplaced))
+      run.call('--check', false)
+      run.call('--apply')
+      test_script = SCRIPT
+      run.call('--check', false)
+      run.call('--apply')
+      run.call('--check')
+      assert_equal first, JSON.parse(File.read(state_path))
       families.each do |family|
         chains = first.fetch(family)
         assert_equal ['-j', 'SWARM-BLOCK-INPUT'], chains.fetch('INPUT').first

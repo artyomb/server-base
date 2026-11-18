@@ -2,8 +2,9 @@
 set -eu
 
 # Keep Loki and Swarm internals reachable locally and over private interfaces.
-# Public-interface peer traffic must be allowed separately before adding nodes.
+# Explicit peer addresses may share a default-route interface; Loki stays blocked.
 # Match the original port because Docker DNAT runs before the filter chains.
+trusted_peers=''
 mode=${1:---apply}
 case "$mode" in --apply|--check) ;; *) echo 'Usage: swarm-block-ports [--apply|--check]' >&2; exit 2 ;; esac
 interfaces=${EXT_IF:-$(ip -o -4 route show default; ip -o -6 route show default)}
@@ -23,6 +24,18 @@ protect_chain() {
   operation=-A
   [ "$mode" != '--check' ] || operation=-C
   count=0
+  if [ "$match" = direct ]; then
+    for interface in $interfaces; do
+      for peer in $trusted_peers; do
+        case "$peer" in *:*) family=ip6tables ;; *) family=iptables ;; esac
+        [ "$ipt" = "$family" ] || continue
+        "$ipt" -w "$operation" "$chain" -i "$interface" -s "$peer" -p tcp -m multiport --dports 2377,7946 -j RETURN
+        "$ipt" -w "$operation" "$chain" -i "$interface" -s "$peer" -p udp -m multiport --dports 7946,4789 -j RETURN
+        count=$((count + 2))
+      done
+    done
+  fi
+  peer_count=$count
   for interface in $interfaces; do
     if [ "$match" = original ]; then
       "$ipt" -w "$operation" "$chain" -i "$interface" -p tcp -m conntrack --ctdir ORIGINAL --ctorigdstport 3100 -j REJECT --reject-with tcp-reset
@@ -45,6 +58,11 @@ protect_chain() {
     "$ipt" -w -I "$parent" 1 -j "$chain"
   else
     [ "$("$ipt" -w -S "$chain" | wc -l)" -eq "$((count + 2))" ]
+    # Peer exceptions precede all rejections; the unconditional return must be last.
+    "$ipt" -w -S "$chain" | awk -v n="$peer_count" -v chain="$chain" '
+      NR > 1 && NR <= n+1 && / -j RETURN$/ { peers++ }
+      { last = $0 }
+      END { exit !(peers+0 == n && last == "-A " chain " -j RETURN") }'
     [ "$("$ipt" -w -S "$parent" | sed -n '2p')" = "-A $parent -j $chain" ]
     [ "$("$ipt" -w -S "$parent" | grep -Fxc -- "-A $parent -j $chain")" -eq 1 ]
   fi

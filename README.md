@@ -60,7 +60,14 @@ environment and does not automatically load `.env` files.
 ruby bin/deploy --servers-dir ../server-config --server demo
 ```
 
-This command changes the target server. It runs SSH preflight checks, resolves
+The main SSH session takes an exclusive `flock` on
+`/run/server-base-deploy.lock` before it reads the host's preflight data.
+A competing deployment to the same host fails before preflight, even from
+another runner. Different hosts can deploy in parallel. During rollout, let
+deployments using the previous version finish before starting the first
+protected run.
+
+The deployer runs SSH preflight checks, resolves
 action dependencies, and applies host actions whose checks report missing or
 outdated configuration. Stack actions run on every deployment; removed services
 can be pruned. Keep `swarm` before stacks that need its networks.
@@ -95,8 +102,13 @@ Timed-out jobs are recorded as status 124 in `parallel.log`. Other queued jobs
 continue, and the final summary includes completed and failed job counts. The
 batch exits unsuccessfully if any job fails or a result is missing.
 
-Stopping local processes does not roll back remote changes or guarantee that
-remote commands stop. After a timeout, inspect the affected server before retrying.
+The server releases the lock when the main SSH session's input closes,
+including when the runner exits during an action. After a silent network
+failure, release depends on when SSH closes the channel. The client checks
+the main session's exit status at the end of the deployment.
+The lock file can remain in `/run` between deployments. Leave it in place.
+The SSH agent and a persistent SSH master can stay up between jobs. Separate
+commands started by exec, rsync or dry-stack may finish after the session ends.
 
 ## CI/CD
 
@@ -221,7 +233,17 @@ on different nodes can reach each other over an overlay.
 
 Base checks time synchronization with a bounded `chronyc waitsync`. If public
 NTP is unreachable, configure `install :base, ntp_servers: ['ntp.example.org']`
-in the host profile. A timeout causes readiness to fail. During repair, Base
+in the host profile. Base compares the configured list with the `BASE NTP SERVERS`
+block, even when the old source is unreachable. If all other host checks pass,
+Base repairs only chrony. Before replacing a managed block, it records a pending
+restart. A later deployment retries an interrupted update even if the clock
+still reports synchronization with the old source. After a successful restart
+and synchronization, Base records the explicit source list in `sources-verified`.
+A missing, empty or mismatched record triggers one restart to load the requested
+list from disk. The next deployment with the same list skips the action if the
+host is healthy. An omitted or empty list leaves existing source configuration
+under the operator's control.
+A timeout causes readiness to fail. During repair, Base
 tries the configured sources and then the fallback sources, reporting
 `chronyc -n sources` if synchronization still fails.
 

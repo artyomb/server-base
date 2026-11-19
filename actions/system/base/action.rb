@@ -1,8 +1,12 @@
 Action :base, default: true do
   UBUNTU_PACKAGES = %w[curl mc htop screen gdu swapspace rsync jq chrony].freeze
   REDOS_PACKAGES  = %w[curl mc htop screen ncdu rsync jq chrony].freeze
+  ubuntu_package_installed = lambda do |pkg|
+    %(dpkg-query -W -f='${db:Status-Status}\\n' -- "#{pkg}" 2>/dev/null | grep -Fxq installed)
+  end
   chrony_script = File.read(File.join(__dir__, 'chrony.sh'))
-  chrony_command = lambda do |mode, servers = []|
+  chrony_command = lambda do |mode, sources|
+    servers = Array(sources).flat_map { |value| value.to_s.scan(/[^\s,]+/) }.uniq
     "bash -s -- #{Shellwords.join([mode, *servers])} <<'BASE_CHRONY'\n#{chrony_script}BASE_CHRONY\n"
   end
 
@@ -19,11 +23,10 @@ Action :base, default: true do
     end
     swapfile_size_gb = Integer(swap_cfg&.fetch(:size_gb, nil) || params[:swapfile_size_gb] || 16) rescue 16
     swapfile_size_bytes = swapfile_size_gb * 1024 * 1024 * 1024
-    ntp_servers = Array(params[:ntp_servers]).flat_map { |v| v.to_s.split(/[\s,]+/) }.map(&:strip).reject(&:empty?).uniq
     pkgs = (distro == 'redos' ? REDOS_PACKAGES : UBUNTU_PACKAGES) - skip
     missing = pkgs.reject do |pkg|
       if distro == 'ubuntu'
-        capture("dpkg -l | grep -qw #{pkg} && echo ok || true").strip == 'ok'
+        capture("#{ubuntu_package_installed.call(pkg)} && echo ok || true").strip == 'ok'
       else
         capture("rpm -q #{pkg} >/dev/null 2>&1 && echo ok || true").strip == 'ok'
       end
@@ -36,41 +39,46 @@ Action :base, default: true do
       end
     end
     ipvs_ok = capture('lsmod | grep -qw ip_vs && echo ok || true').strip == 'ok'
-    chrony_active = true
-    chrony_connected = true
-    unless skip.include?('chrony')
-      chrony_state = capture(chrony_command.call('check')).strip
-      chrony_active = chrony_state != 'inactive'
-      chrony_connected = chrony_state == 'synchronized'
-    end
-    chrony_ok = chrony_active && chrony_connected
+    chrony_state = if skip.include?('chrony')
+                     'skipped'
+                   else
+                     capture(chrony_command.call('check', params[:ntp_servers])).strip
+                   end
+    chrony_ok = %w[synchronized skipped].include?(chrony_state)
     yq_ok = skip.include?('yq') || capture('yq --version >/dev/null 2>&1 && echo ok || true').strip == 'ok'
     root_ps1_ok = capture(%q{grep -Fqx "export PS1='\u@\H:\w# '" /root/.bashrc && echo ok || true}).strip == 'ok'
     swap_present = capture('swapon --show=NAME --noheadings 2>/dev/null | tr -d " " | grep -qx /swapfile && echo ok || true').strip == 'ok'
     swap_size_ok = capture('test -f /swapfile && stat -c %s /swapfile || true').strip == swapfile_size_bytes.to_s
     swap_ok = !manage_swapfile || distro == 'ubuntu' || (swap_present && swap_size_ok)
     k8s_repo_absent = distro != 'redos' || capture('[ ! -f /etc/yum.repos.d/kubernetes.repo ] && echo ok || true').strip == 'ok'
-    ok = ruby_ok && ipvs_ok && chrony_ok && yq_ok && root_ps1_ok && missing.empty? && swap_ok && k8s_repo_absent
-    unless ok
-      puts "[base check] missing packages: #{missing.join(', ')}" unless missing.empty?
-      puts "[base check] ruby missing, < 3, or openssl extension unavailable" unless ruby_ok
-      puts "[base check] ip_vs module missing" unless ipvs_ok
-      puts "[base check] chrony not active" unless chrony_active
-      if chrony_active && !chrony_connected
-        puts '[base check] chrony is active but synchronization could not be confirmed'
-      end
-      puts "[base check] requested custom NTP servers: #{ntp_servers.join(', ')}" unless ntp_servers.empty?
-      puts "[base check] yq missing" unless yq_ok
-      puts "[base check] /root/.bashrc missing required PS1 export" unless root_ps1_ok
-      if manage_swapfile && distro == 'redos' && !swap_ok
-        puts "[base check] /swapfile missing or size mismatch (expected #{swapfile_size_gb}G)"
-      end
-      puts "[base check] kubernetes.repo present (will be removed)" unless k8s_repo_absent
+    baseline_ok = ruby_ok && ipvs_ok && yq_ok && root_ps1_ok && missing.empty? && swap_ok && k8s_repo_absent
+    @base_chrony_only = baseline_ok && !chrony_ok
+    next true if baseline_ok && chrony_ok
+
+    puts "[base check] missing packages: #{missing.join(', ')}" unless missing.empty?
+    puts "[base check] ruby missing, < 3, or openssl extension unavailable" unless ruby_ok
+    puts "[base check] ip_vs module missing" unless ipvs_ok
+    case chrony_state
+    when 'inactive' then puts '[base check] chrony not active'
+    when 'unsynchronized' then puts '[base check] chrony synchronization could not be confirmed'
+    when 'sources-drift' then puts '[base check] managed NTP sources differ from the server profile'
+    when 'restart-pending' then puts '[base check] managed NTP sources still require a verified restart'
+    when 'sources-unverified' then puts '[base check] managed NTP source list requires a verified restart'
     end
-    ok
+    puts "[base check] yq missing" unless yq_ok
+    puts "[base check] /root/.bashrc missing required PS1 export" unless root_ps1_ok
+    if manage_swapfile && distro == 'redos' && !swap_ok
+      puts "[base check] /swapfile missing or size mismatch (expected #{swapfile_size_gb}G)"
+    end
+    puts "[base check] kubernetes.repo present (will be removed)" unless k8s_repo_absent
+    false
   end
 
   apply do |params|
+    if @base_chrony_only
+      remote(chrony_command.call('apply', params[:ntp_servers]))
+      next
+    end
     skip = Array(params[:skip_packages]).map(&:to_s)
     skip_ruby = params[:skip_ruby] == true
     swap_cfg = params[:swapfile].is_a?(Hash) ? params[:swapfile] : nil
@@ -82,7 +90,6 @@ Action :base, default: true do
       !skip.include?('swapfile')
     end
     swapfile_size_gb = Integer(swap_cfg&.fetch(:size_gb, nil) || params[:swapfile_size_gb] || 16) rescue 16
-    ntp_servers = Array(params[:ntp_servers]).flat_map { |v| v.to_s.split(/[\s,]+/) }.map(&:strip).reject(&:empty?).uniq
     pkgs = (distro == 'redos' ? REDOS_PACKAGES : UBUNTU_PACKAGES) - skip
     ruby_install_script = File.read(File.join(__dir__, 'install_ruby.sh'))
     remote <<~SH
@@ -119,7 +126,7 @@ RUBY_INSTALL
       install_pkg() {
         pkg=$1
         if [ "$DISTRO" = "ubuntu" ]; then
-          if ! dpkg -l | grep -qw "$pkg"; then
+          if ! #{ubuntu_package_installed.call('$pkg')}; then
             update_once
             apt-get install -y "$pkg"
           fi
@@ -138,7 +145,7 @@ RUBY_INSTALL
       fi
       # ensure chrony is running
       if ! skip_pkg chrony; then
-        #{chrony_command.call('apply', ntp_servers)}
+        #{chrony_command.call('apply', params[:ntp_servers])}
       fi
       # install yq via upstream binary
       if ! skip_pkg yq && ! yq --version >/dev/null 2>&1; then

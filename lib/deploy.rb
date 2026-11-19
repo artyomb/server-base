@@ -6,6 +6,7 @@ require 'open3'
 require 'json'
 require 'pathname'
 require 'shellwords'
+require 'timeout'
 
 module Deploy
   DEBUG_TRUE_VALUES = %w[1 true yes on].freeze
@@ -185,6 +186,7 @@ module Deploy
   end
 
   class SSH
+    SESSION_EXIT_TIMEOUT = 10
     SSH_OPTS = %w[
       -o StrictHostKeyChecking=no
       -o ConnectTimeout=15
@@ -223,6 +225,32 @@ module Deploy
       return cmd if @remote_env.empty?
       exports = @remote_env.map { |k, v| "#{k}=#{Shellwords.escape(v)}" }.join(' ')
       "env #{exports} bash -c #{Shellwords.escape(cmd)}"
+    end
+
+    # The initial preflight and the lock use one SSH channel, including under ControlMaster.
+    def with_main_session(preflight)
+      session = <<~BASH
+        timeout -k 2 30 bash -c #{Shellwords.escape(preflight)} || exit $?
+        exec cat >/dev/null
+      BASH
+      command = "umask 077; exec flock -n -E 75 -o /run/server-base-deploy.lock bash -c #{Shellwords.escape(session)}"
+      Open3.popen2('ssh', '-T', '-o', 'ClearAllForwardings=yes', *@ssh_opts,
+                   '-p', @port.to_s, "root@#{@host}", command) do |input, output, process|
+        begin
+          info = Timeout.timeout(45, Timeout::Error, "Main SSH preflight timed out on #{@host}") { output.gets }
+          result = yield info if info
+        ensure
+          input.close
+          Process.kill('KILL', process.pid) unless process.join(SESSION_EXIT_TIMEOUT)
+        end
+        status = process.value
+        unless info
+          raise "Deployment already running on #{@host}" if status.exitstatus == 75
+          raise "Main SSH preflight failed on #{@host}"
+        end
+        raise "Main SSH session lost on #{@host}" unless status.success?
+        result
+      end
     end
 
     def exec!(cmd)
@@ -415,6 +443,18 @@ module Deploy
 
   class Executor
     MAX_TIME_DRIFT_SECONDS = 30
+    PREFLIGHT_INFO = <<~SH
+      set -e
+      if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        distro="$ID"
+      else
+        distro="unsupported"
+      fi
+      server_hostname="$(hostname -f 2>/dev/null || hostname)"
+      server_epoch="$(date +%s)"
+      printf '%s\\t%s\\t%s\\n' "$distro" "$server_hostname" "$server_epoch"
+    SH
 
     def initialize(config, actions:)
       @config = config
@@ -432,10 +472,14 @@ module Deploy
       raise "host is required" unless @config.host
       raise "tls_domain or main_domain is required" unless @config.tls_domain || @config.main_domain
 
-      preflight = preflight!
+      @ssh.with_main_session(PREFLIGHT_INFO) { |raw| deploy!(preflight!(raw)) }
+    end
+
+    private
+
+    def deploy!(distro)
       run_rsyncs!
 
-      distro = preflight[:distro]
       context = ActionContext.new(@config, @ssh, distro)
 
       install_steps = @config.installs
@@ -505,8 +549,6 @@ module Deploy
 
     end
 
-    private
-
     def run_rsyncs!
       Array(@config.rsyncs).each { |entry| @ssh.rsync!(source: entry[:source], target: entry[:target]) }
     end
@@ -523,8 +565,8 @@ module Deploy
       raise "Action #{action.name} failed: #{e.message}"
     end
 
-    def preflight!
-      info = fetch_preflight_info!
+    def preflight!(raw)
+      info = fetch_preflight_info!(raw)
       local_epoch = Time.now.to_i
       drift_seconds = (info[:server_epoch] - local_epoch).abs
       print_preflight_banner(info[:distro], info[:server_hostname], local_epoch, info[:server_epoch], drift_seconds)
@@ -548,22 +590,10 @@ module Deploy
           raise "Server time drift is #{drift_seconds}s (limit #{MAX_TIME_DRIFT_SECONDS}s) after sync attempts (#{sync_method}, #{force_method})" if drift_seconds > MAX_TIME_DRIFT_SECONDS
         end
       end
-      { distro: info[:distro] }
+      info[:distro]
     end
 
-    def fetch_preflight_info!
-      raw = @ssh.capture(<<~SH)
-        set -e
-        if [ -f /etc/os-release ]; then
-          . /etc/os-release
-          distro="$ID"
-        else
-          distro="unsupported"
-        fi
-        server_hostname="$(hostname -f 2>/dev/null || hostname)"
-        server_epoch="$(date +%s)"
-        printf '%s\\t%s\\t%s\\n' "$distro" "$server_hostname" "$server_epoch"
-      SH
+    def fetch_preflight_info!(raw = @ssh.capture(PREFLIGHT_INFO))
       distro, server_hostname, server_epoch_raw = raw.strip.split("\t", 3)
       raise "Preflight failed: unable to parse remote info" unless distro && server_hostname && server_epoch_raw
       { distro: distro, server_hostname: server_hostname, server_epoch: Integer(server_epoch_raw, 10) }
